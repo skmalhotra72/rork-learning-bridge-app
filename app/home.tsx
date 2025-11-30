@@ -76,7 +76,10 @@ export default function HomeScreen() {
 
   const handleStartAssessment = (subjectId: string) => {
     console.log(`Starting assessment for subject ${subjectId}`);
-    router.push("/home");
+    router.push({
+      pathname: "/assessment-intro",
+      params: { subjectId },
+    });
   };
 
   const navigateToHome = () => {
