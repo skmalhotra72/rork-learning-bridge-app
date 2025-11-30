@@ -210,6 +210,10 @@ export const [UserProvider, useUser] = createContextHook(() => {
       }
 
       console.log("Signup complete!");
+      console.log("Step 5: Setting up session in context...");
+      
+      setSession(authData.session);
+      setAuthUser(authData.user);
       
       const tempUser: UserProfile = {
         name: name.trim(),
@@ -220,6 +224,9 @@ export const [UserProvider, useUser] = createContextHook(() => {
         hasCompletedOnboarding: false,
       };
       setUser(tempUser);
+      
+      console.log("Session set:", !!authData.session);
+      console.log("Auth user set:", authData.user.id);
 
       router.push("/grade-selection");
       
@@ -257,6 +264,9 @@ export const [UserProvider, useUser] = createContextHook(() => {
       if (!data.user) {
         return { success: false, error: "Failed to login" };
       }
+
+      setSession(data.session);
+      setAuthUser(data.user);
 
       await loadUserProfile(data.user.id);
 
@@ -320,22 +330,42 @@ export const [UserProvider, useUser] = createContextHook(() => {
 
   const completeOnboarding = async (): Promise<{ success: boolean; error?: string }> => {
     if (!user) {
+      console.error("No user in context");
       return { success: false, error: "User data not available" };
     }
 
     try {
       console.log("========== COMPLETE ONBOARDING STARTED ==========");
-      console.log("Step 1: Getting current session...");
+      console.log("Current user in context:", user.name, user.email);
+      console.log("Current authUser:", authUser?.id);
+      console.log("Current session exists:", !!session);
       
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log("Step 1: Getting current session...");
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
-      if (sessionError || !session) {
+      console.log("Session fetch result:", {
+        hasSession: !!currentSession,
+        hasError: !!sessionError,
+        userId: currentSession?.user?.id
+      });
+
+      if (sessionError) {
         console.error("Session error:", sessionError);
-        return { success: false, error: "Please log in again" };
+        return { success: false, error: "Session error occurred" };
       }
 
-      const userId = session.user.id;
-      console.log("User ID from session:", userId);
+      let userId: string;
+      
+      if (currentSession?.user?.id) {
+        userId = currentSession.user.id;
+        console.log("Using session user ID:", userId);
+      } else if (authUser?.id) {
+        userId = authUser.id;
+        console.log("Using authUser ID (fallback):", userId);
+      } else {
+        console.error("No user ID available anywhere");
+        return { success: false, error: "Authentication error. Please log in again." };
+      }
 
       console.log("Step 2: Updating profile...");
       const { error: profileError } = await supabase
@@ -376,7 +406,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
       }
       console.log("Subjects saved successfully");
 
-      console.log("Step 4: Initializing user stats...");
+      console.log("Step 4: Ensuring user stats exist...");
       const { error: statsError } = await supabase
         .from("user_stats")
         .upsert({
@@ -385,8 +415,11 @@ export const [UserProvider, useUser] = createContextHook(() => {
           current_level: 1,
           streak_count: 0,
           concepts_mastered: 0,
-          last_activity: new Date().toISOString(),
-        }, { onConflict: "user_id" });
+          quizzes_completed: 0,
+          last_activity_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id", ignoreDuplicates: false });
 
       if (statsError) {
         console.error("Stats initialization error:", statsError);
