@@ -369,7 +369,7 @@ export default function AITutorScreen() {
         authUser.id,
         5,
         `Asked question about ${subjectName}`,
-        'active_learning',
+        'concept_mastery',
         subjectName
       );
 
