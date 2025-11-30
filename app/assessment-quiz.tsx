@@ -285,7 +285,12 @@ export default function AssessmentQuizScreen() {
   };
 
   const finishAssessment = () => {
-    console.log("Assessment finished, navigating to results");
+    console.log("=== FINISHING ASSESSMENT ===");
+    console.log("Subject ID being passed:", subjectId);
+    console.log("Subject Name:", subjectName);
+    console.log("Total questions:", questions.length);
+    console.log("Total answers:", Object.keys(answers).length);
+    
     router.push({
       pathname: "/assessment-results",
       params: {

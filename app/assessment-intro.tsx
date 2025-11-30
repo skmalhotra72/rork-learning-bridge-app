@@ -36,6 +36,11 @@ export default function AssessmentIntroScreen() {
   }
 
   const handleStartAssessment = () => {
+    console.log("=== STARTING ASSESSMENT ===");
+    console.log("Subject ID:", subject.id);
+    console.log("Subject Name:", subject.name);
+    console.log("Subject Object:", subject);
+    
     router.push({
       pathname: "/assessment-quiz",
       params: {

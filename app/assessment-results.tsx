@@ -88,39 +88,99 @@ export default function AssessmentResultsScreen() {
       }
 
       const userId = authUser.id;
-      console.log("Saving assessment for user:", userId);
+      console.log("=== SAVING ASSESSMENT ===");
+      console.log("User ID:", userId);
+      console.log("Subject ID:", subjectId);
+      console.log("Subject Name:", subjectName);
+      console.log("Score:", analysis.score);
 
-      const { data: subjectData } = await supabase
+      // First, verify the subject exists
+      console.log("Looking up subject progress record...");
+      const { data: existingSubject, error: checkError } = await supabase
         .from("subject_progress")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("subject", subjectId)
+        .select("*")
+        .eq("id", subjectId)
         .single();
 
-      if (!subjectData) {
-        console.error("Subject progress not found");
+      if (checkError) {
+        console.error("Subject check error:", checkError);
+        console.error("Cannot find subject with ID:", subjectId);
+        
+        // Try to find by user_id and subject name instead
+        console.log("Trying to find by user_id and subject name...");
+        const { data: subjectByName, error: nameError } = await supabase
+          .from("subject_progress")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("subject", subjectName)
+          .single();
+
+        if (nameError || !subjectByName) {
+          console.error("Subject not found by name either:", nameError);
+          Alert.alert("Error", "Could not find subject to update. Please try again.");
+          return;
+        }
+
+        console.log("Found subject by name:", subjectByName.id);
+        
+        // Update using the correct ID
+        const { data: updateData, error: updateError } = await supabase
+          .from("subject_progress")
+          .update({
+            status: "lets_bridge_gaps",
+            mastery_percentage: analysis.score,
+            last_updated: new Date().toISOString(),
+          })
+          .eq("id", subjectByName.id)
+          .select();
+
+        if (updateError) {
+          console.error("❌ Update error:", updateError);
+          Alert.alert("Save Error", "Failed to save assessment results");
+        } else {
+          console.log("✅ Assessment saved successfully!");
+          console.log("Updated data:", updateData);
+          await refreshData();
+        }
+
         return;
       }
 
-      const { error: updateError } = await supabase
+      console.log("Subject found:", existingSubject);
+
+      // Update the subject status
+      const { data: updateData, error: updateError } = await supabase
         .from("subject_progress")
         .update({
           status: "lets_bridge_gaps",
           mastery_percentage: analysis.score,
           last_updated: new Date().toISOString(),
         })
-        .eq("id", subjectData.id);
+        .eq("id", subjectId)
+        .select();
 
       if (updateError) {
-        console.error("Update status error:", updateError);
+        console.error("❌ Update error:", updateError);
+        console.error("Error details:", JSON.stringify(updateError));
+        Alert.alert("Save Error", `Failed to save: ${updateError.message}`);
       } else {
-        console.log("Assessment saved successfully");
+        console.log("✅ Assessment saved successfully!");
+        console.log("Updated data:", updateData);
+        
+        if (!updateData || updateData.length === 0) {
+          console.warn("Update succeeded but no rows returned");
+        }
+        
         await refreshData();
       }
+
     } catch (error) {
-      console.error("Save error:", error);
+      console.error("❌ Save assessment exception:", error);
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+      }
     }
-  }, [authUser, subjectId, refreshData]);
+  }, [authUser, subjectId, subjectName, refreshData]);
 
   const analyzeResults = useCallback(async () => {
     try {
