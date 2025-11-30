@@ -24,7 +24,10 @@ export default function GradeSelectionScreen() {
   const handleNext = async () => {
     if (!selectedGrade) return;
     await updateGrade(selectedGrade);
-    router.push("/subject-selection" as any);
+    router.push({
+      pathname: "/language-selection" as any,
+      params: { selectedGrade }
+    });
   };
 
   return (

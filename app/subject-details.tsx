@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
@@ -20,6 +20,11 @@ import { useUser } from "@/contexts/UserContext";
 
 export default function SubjectDetailsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const schoolMedium = params.schoolMedium as string;
+  const preferredLanguage = params.preferredLanguage as string;
+  const allowCodeMixing = params.allowCodeMixing === 'true';
+  
   const { user, updateSubjectDetails } = useUser();
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [subjectDetailsMap, setSubjectDetailsMap] = useState<
@@ -62,7 +67,14 @@ export default function SubjectDetailsScreen() {
     await updateSubjectDetails(currentDetails);
 
     if (isLastSubject) {
-      router.push("/profile-confirmation" as any);
+      router.push({
+        pathname: "/profile-confirmation" as any,
+        params: {
+          schoolMedium,
+          preferredLanguage,
+          allowCodeMixing: allowCodeMixing.toString()
+        }
+      });
     } else {
       setCurrentIndex((prev) => prev + 1);
     }

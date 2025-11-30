@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, CheckSquare, Square } from "lucide-react-native";
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -12,6 +12,11 @@ import { useUser } from "@/contexts/UserContext";
 
 export default function SubjectSelectionScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const schoolMedium = params.schoolMedium as string;
+  const preferredLanguage = params.preferredLanguage as string;
+  const allowCodeMixing = params.allowCodeMixing === 'true';
+  
   const { updateSelectedSubjects } = useUser();
   const [selectedSubjects, setSelectedSubjects] = useState<SubjectType[]>([]);
 
@@ -29,7 +34,14 @@ export default function SubjectSelectionScreen() {
       return;
     }
     await updateSelectedSubjects(selectedSubjects);
-    router.push("/subject-details" as any);
+    router.push({
+      pathname: "/subject-details" as any,
+      params: {
+        schoolMedium,
+        preferredLanguage,
+        allowCodeMixing: allowCodeMixing.toString()
+      }
+    });
   };
 
   const handleBack = () => {

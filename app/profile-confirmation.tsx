@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Edit2 } from "lucide-react-native";
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -8,9 +8,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { getConfidenceLabel, SUBJECTS } from "@/constants/types";
 import { useUser } from "@/contexts/UserContext";
+import { saveLanguageSettings } from "@/services/multilingualPrompts";
 
 export default function ProfileConfirmationScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const schoolMedium = params.schoolMedium as string;
+  const preferredLanguage = params.preferredLanguage as string;
+  const allowCodeMixing = params.allowCodeMixing === 'true';
+  
   const { user, authUser, session, completeOnboarding } = useUser();
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -31,8 +37,31 @@ export default function ProfileConfirmationScreen() {
   }
 
   const handleStartJourney = async () => {
+    if (!authUser?.id) {
+      Alert.alert("Error", "User not authenticated");
+      return;
+    }
+
     setIsLoading(true);
     try {
+      console.log('=== SAVING LANGUAGE SETTINGS ===');
+      console.log('School Medium:', schoolMedium);
+      console.log('Preferred Language:', preferredLanguage);
+      console.log('Allow Code Mixing:', allowCodeMixing);
+      
+      const langResult = await saveLanguageSettings(authUser.id, {
+        schoolMedium: schoolMedium || 'English',
+        preferredLanguage: preferredLanguage || 'English',
+        allowCodeMixing: allowCodeMixing,
+        englishProficiency: 3
+      });
+
+      if (!langResult.success) {
+        console.error('Language settings save failed:', langResult.error);
+      } else {
+        console.log('✅ Language settings saved successfully');
+      }
+
       const result = await completeOnboarding();
       
       if (!result.success) {

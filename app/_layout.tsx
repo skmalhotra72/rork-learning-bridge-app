@@ -17,6 +17,7 @@ function RootLayoutNav() {
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="grade-selection" options={{ headerShown: false }} />
+      <Stack.Screen name="language-selection" options={{ headerShown: false }} />
       <Stack.Screen name="subject-selection" options={{ headerShown: false }} />
       <Stack.Screen name="subject-details" options={{ headerShown: false }} />
       <Stack.Screen name="profile-confirmation" options={{ headerShown: false }} />
