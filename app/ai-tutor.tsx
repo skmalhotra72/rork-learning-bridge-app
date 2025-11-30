@@ -87,34 +87,35 @@ export default function AITutorScreen() {
     const userMessage = inputText.trim();
     setInputText("");
 
-    console.log("Sending message:", userMessage);
+    console.log("=== SENDING MESSAGE TO AI ===");
+    console.log("User message:", userMessage);
     console.log("User context:", {
       name: user?.name,
       grade: user?.grade,
       subject: subjectName,
     });
 
-    const systemContext = `You are Buddy, a friendly and patient AI tutor for Indian CBSE Class ${user?.grade || "10"} students.
+    const contextualMessage = `I am a CBSE Class ${user?.grade || "10"} student learning ${subjectName}. Please act as my friendly tutor Buddy 🦉.
 
-Student Context:
-- Name: ${user?.name || "Student"}
-- Grade: ${user?.grade || "10"}
-- Subject: ${subjectName}
-- They recently completed an assessment and need help with concepts they found challenging
+Use simple language, Indian examples, and be encouraging. Break down concepts step-by-step.
 
-Your teaching style:
-- Use simple, clear language appropriate for Class ${user?.grade || "10"}
-- Use Indian examples (rupees, cricket, Bollywood, daily life) when relevant
-- Break complex concepts into small, digestible steps
-- Ask checking questions after explanations to ensure understanding
-- Be encouraging and patient - never make the student feel bad for not knowing
-- Use emojis occasionally (but not excessively) to keep it friendly
-- Provide practice problems when asked
-- Give step-by-step solutions
+My question: ${userMessage}`;
 
-Current conversation is about ${subjectName}.`;
-
-    await sendMessage(`${systemContext}\n\nStudent question: ${userMessage}`);
+    try {
+      await sendMessage(contextualMessage);
+      console.log("✅ Message sent successfully");
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again. 😔",
+          timestamp: new Date(),
+        },
+      ]);
+    }
   };
 
   const handleExplainConcept = () => {
