@@ -174,19 +174,21 @@ export const [UserProvider, useUser] = createContextHook(() => {
       const userId = data.user.id;
       console.log("Auth user created successfully. User ID:", userId);
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-      console.log("Creating profile manually...");
+      console.log("Waiting for auth to settle...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
+      console.log("Creating profile FIRST (required for foreign key)...");
       const { error: profileError } = await supabase
         .from("profiles")
         .insert({
           id: userId,
           full_name: name.trim(),
           email: email.trim().toLowerCase(),
-          grade: "9",
+          grade: "10",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
+        })
+        .select();
 
       if (profileError) {
         console.error("Profile creation error:", profileError);
@@ -194,30 +196,21 @@ export const [UserProvider, useUser] = createContextHook(() => {
         console.error("Profile error details:", profileError.details);
         console.error("Profile error hint:", profileError.hint);
         
-        if (profileError.code === "23505") {
-          console.log("Profile already exists (duplicate key), trying to update instead...");
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({
-              full_name: name.trim(),
-              grade: "9",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", userId);
-          
-          if (updateError) {
-            console.error("Profile update error:", updateError);
-          } else {
-            console.log("Profile updated successfully");
-          }
-        } else {
-          console.warn("Profile creation failed but continuing...");
+        const { data: existingProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", userId)
+          .single();
+        
+        if (!existingProfile) {
+          return { success: false, error: "Failed to create profile. Please try again." };
         }
+        console.log("Profile exists from trigger");
       } else {
         console.log("Profile created successfully");
       }
 
-      console.log("Creating user stats manually...");
+      console.log("Now creating user stats (after profile exists)...");
       const { error: statsError } = await supabase
         .from("user_stats")
         .insert({
@@ -225,8 +218,9 @@ export const [UserProvider, useUser] = createContextHook(() => {
           total_xp: 0,
           current_level: 1,
           streak_count: 0,
-          last_activity: new Date().toISOString(),
+          last_activity_date: new Date().toISOString().split('T')[0],
           concepts_mastered: 0,
+          quizzes_completed: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
@@ -235,22 +229,16 @@ export const [UserProvider, useUser] = createContextHook(() => {
         console.error("Stats creation error:", statsError);
         console.error("Stats error code:", statsError.code);
         
-        if (statsError.code === "23505") {
-          console.log("Stats already exist (duplicate key), trying to update instead...");
-          const { error: updateStatsError } = await supabase
-            .from("user_stats")
-            .update({
-              updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", userId);
-          
-          if (updateStatsError) {
-            console.error("Stats update error:", updateStatsError);
-          } else {
-            console.log("Stats updated successfully");
-          }
+        const { data: existingStats } = await supabase
+          .from("user_stats")
+          .select("user_id")
+          .eq("user_id", userId)
+          .single();
+        
+        if (!existingStats) {
+          console.error("Stats creation failed and does not exist");
         } else {
-          console.warn("Stats creation failed but continuing...");
+          console.log("Stats exist from trigger");
         }
       } else {
         console.log("User stats created successfully");
@@ -261,7 +249,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
       const tempUser: UserProfile = {
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        grade: "9",
+        grade: "10",
         selectedSubjects: [],
         subjectDetails: [],
         hasCompletedOnboarding: false,
