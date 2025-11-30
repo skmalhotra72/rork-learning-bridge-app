@@ -16,6 +16,7 @@ import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
 import { addXP, updateStreak, checkBadgeEligibility } from "@/services/gamification";
+import CelebrationModal from "@/components/CelebrationModal";
 
 interface Question {
   id: string;
@@ -87,6 +88,11 @@ export default function AssessmentResultsScreen() {
     streakDay: number;
     badgeEarned?: string;
   } | null>(null);
+  const [celebration, setCelebration] = useState<{
+    visible: boolean;
+    type: 'level_up' | 'badge' | 'streak' | null;
+    data: Record<string, unknown>;
+  }>({ visible: false, type: null, data: {} });
 
   const saveAssessment = useCallback(async (
     analysis: GapAnalysis,
@@ -224,6 +230,20 @@ export default function AssessmentResultsScreen() {
       });
 
       console.log("✅ Gamification rewards complete!");
+
+      // Show celebration modal for level up
+      if (xpResult.leveledUp) {
+        setTimeout(() => {
+          setCelebration({
+            visible: true,
+            type: 'level_up',
+            data: {
+              newLevel: xpResult.newLevel,
+              xpEarned: totalXP
+            }
+          });
+        }, 500);
+      }
       // ===== END GAMIFICATION =====
 
       // Refresh user data to show updated progress
@@ -618,6 +638,13 @@ export default function AssessmentResultsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <CelebrationModal
+        visible={celebration.visible}
+        type={celebration.type}
+        data={celebration.data}
+        onClose={() => setCelebration({ visible: false, type: null, data: {} })}
+      />
     </View>
   );
 }
