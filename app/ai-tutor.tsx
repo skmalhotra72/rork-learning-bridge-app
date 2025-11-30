@@ -21,7 +21,8 @@ import { useRorkAgent } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 
-import { saveLearningSession, getStudentContext, updateConceptMastery, buildAIContextString } from "@/services/learningHistory";
+import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
+import { buildMultilingualSystemPrompt, getLanguageSettings, LanguageSettings } from "@/services/multilingualPrompts";
 
 interface Message {
   id: string;
@@ -58,9 +59,11 @@ export default function AITutorScreen() {
     questionsAsked: 0,
     aiResponses: 0,
     confidenceBefore: 5,
-    startTime: Date.now()
+    startTime: Date.now(),
+    tutoringLanguage: 'English'
   });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [languageSettings, setLanguageSettings] = useState<LanguageSettings | null>(null);
 
   const { messages, sendMessage } = useRorkAgent({
     tools: {},
@@ -107,6 +110,24 @@ export default function AITutorScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    void loadLanguageSettings();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadLanguageSettings = async () => {
+    if (!authUser?.id) return;
+    
+    try {
+      console.log('Loading language settings...');
+      const settings = await getLanguageSettings(authUser.id);
+      setLanguageSettings(settings);
+      console.log('Language settings loaded:', settings.preferred_tutoring_language);
+    } catch (error) {
+      console.error('Load language settings error:', error);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -219,27 +240,19 @@ export default function AITutorScreen() {
         return;
       }
 
-      const studentContext = await getStudentContext(authUser.id, subjectName);
-      const contextString = buildAIContextString(studentContext);
+      console.log('Building multilingual system prompt...');
       
-      console.log('Student context loaded');
-      console.log('Context string built');
+      const systemPrompt = await buildMultilingualSystemPrompt(
+        authUser.id,
+        subjectName,
+        'Current Topic',
+        userMessage
+      );
+      
+      console.log('Multilingual prompt built');
+      console.log('Using language:', languageSettings?.preferred_tutoring_language || 'English');
 
-      // Build comprehensive context for AI
-      let fullMessage = `You are Buddy 🦉, an expert CBSE tutor for ${subjectName}.
-
-${contextString}
-
-REMEMBER:
-- Use simple language for Class ${studentContext.grade}
-- Use Indian examples (₹ rupees, cricket, Bollywood)
-- Break concepts into small steps
-- Be encouraging and patient
-- Use emojis occasionally 😊
-
----
-
-Student's question: ${userMessage}`;
+      let fullMessage = systemPrompt;
 
       if (selectedImage) {
         fullMessage += "\n\n[Note: Student has uploaded an image. Please acknowledge it and ask them to describe what they see or need help with, since image analysis is not yet available.]";
@@ -253,7 +266,8 @@ Student's question: ${userMessage}`;
         ...prev,
         conceptsExplained: [...prev.conceptsExplained, 'Current Topic'],
         questionsAsked: prev.questionsAsked + 1,
-        aiResponses: prev.aiResponses + 1
+        aiResponses: prev.aiResponses + 1,
+        tutoringLanguage: languageSettings?.preferred_tutoring_language || 'English'
       }));
 
       setSelectedImage(null);
