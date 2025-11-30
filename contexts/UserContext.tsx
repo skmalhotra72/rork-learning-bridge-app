@@ -340,34 +340,46 @@ export const [UserProvider, useUser] = createContextHook(() => {
       console.log("Current authUser:", authUser?.id);
       console.log("Current session exists:", !!session);
       
-      console.log("Step 1: Getting current session...");
-      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-
-      console.log("Session fetch result:", {
-        hasSession: !!currentSession,
-        hasError: !!sessionError,
-        userId: currentSession?.user?.id
-      });
-
-      if (sessionError) {
-        console.error("Session error:", sessionError);
-        return { success: false, error: "Session error occurred" };
-      }
-
-      let userId: string;
+      console.log("Step 1: Determining user ID...");
       
-      if (currentSession?.user?.id) {
-        userId = currentSession.user.id;
-        console.log("Using session user ID:", userId);
-      } else if (authUser?.id) {
+      let userId: string | undefined;
+      
+      if (authUser?.id) {
         userId = authUser.id;
-        console.log("Using authUser ID (fallback):", userId);
+        console.log("✓ Using authUser ID from context:", userId);
+      } else if (session?.user?.id) {
+        userId = session.user.id;
+        console.log("✓ Using session user ID from context:", userId);
       } else {
-        console.error("No user ID available anywhere");
+        console.log("⚠️ No user ID in context, fetching fresh session...");
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+
+        console.log("Session fetch result:", {
+          hasSession: !!currentSession,
+          hasError: !!sessionError,
+          userId: currentSession?.user?.id
+        });
+
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          return { success: false, error: "Session error occurred" };
+        }
+
+        if (currentSession?.user?.id) {
+          userId = currentSession.user.id;
+          console.log("✓ Using fresh session user ID:", userId);
+        }
+      }
+      
+      if (!userId) {
+        console.error("❌ No user ID available from any source");
+        console.error("Context state:", { hasAuthUser: !!authUser, hasSession: !!session, hasUser: !!user });
         return { success: false, error: "Authentication error. Please log in again." };
       }
+      
+      console.log("Step 2: User ID confirmed:", userId);
 
-      console.log("Step 2: Updating profile...");
+      console.log("Step 3: Updating profile...");
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -382,7 +394,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
       }
       console.log("Profile updated successfully");
 
-      console.log("Step 3: Preparing subject data...");
+      console.log("Step 4: Preparing subject data...");
       const subjectData = user.subjectDetails.map((detail) => {
         return {
           user_id: userId,
@@ -406,7 +418,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
       }
       console.log("Subjects saved successfully");
 
-      console.log("Step 4: Ensuring user stats exist...");
+      console.log("Step 5: Ensuring user stats exist...");
       const { error: statsError } = await supabase
         .from("user_stats")
         .upsert({

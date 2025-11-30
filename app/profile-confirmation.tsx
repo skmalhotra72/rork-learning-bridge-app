@@ -11,10 +11,24 @@ import { useUser } from "@/contexts/UserContext";
 
 export default function ProfileConfirmationScreen() {
   const router = useRouter();
-  const { user, completeOnboarding } = useUser();
+  const { user, authUser, session, completeOnboarding } = useUser();
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  if (!user) return null;
+  console.log("========== PROFILE CONFIRMATION SCREEN ==========");
+  console.log("User context:", {
+    hasUser: !!user,
+    userName: user?.name,
+    hasAuthUser: !!authUser,
+    authUserId: authUser?.id,
+    hasSession: !!session,
+    sessionUserId: session?.user?.id
+  });
+  console.log("=================================================");
+
+  if (!user) {
+    console.log("No user in context, redirecting to welcome");
+    return null;
+  }
 
   const handleStartJourney = async () => {
     setIsLoading(true);
