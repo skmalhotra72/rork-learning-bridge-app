@@ -100,27 +100,34 @@ export default function AuthScreen() {
   };
 
   const handleLogin = async () => {
+    if (!loginEmail.trim()) {
+      Alert.alert("Error", "Please enter your email");
+      return;
+    }
     if (!validateEmail(loginEmail)) {
       Alert.alert("Error", "Please enter a valid email address");
       return;
     }
-    if (loginPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long");
+    if (!loginPassword) {
+      Alert.alert("Error", "Please enter your password");
       return;
     }
 
     setIsLoading(true);
+    console.log("Attempting login for:", loginEmail.trim().toLowerCase());
+    
     try {
       const result = await login(loginEmail, loginPassword);
       
       if (!result.success) {
-        Alert.alert("Error", result.error || "Failed to login");
+        console.error("Login failed:", result.error);
+        Alert.alert("Login Failed", result.error || "Failed to login. Please try again.");
       } else {
-        Alert.alert("Success", "Welcome back! 👋");
+        console.log("Login successful!");
       }
     } catch (error) {
-      console.error("Login error:", error);
-      Alert.alert("Error", "An unexpected error occurred");
+      console.error("Unexpected login error:", error);
+      Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
