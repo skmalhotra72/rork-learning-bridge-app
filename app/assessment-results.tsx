@@ -132,7 +132,7 @@ export default function AssessmentResultsScreen() {
         .update({
           status: "lets_bridge_gaps",
           mastery_percentage: analysis.score,
-          updated_at: new Date().toISOString(),
+          last_updated: new Date().toISOString(),
         })
         .eq("id", subjectProgressId)
         .eq("user_id", userId)
