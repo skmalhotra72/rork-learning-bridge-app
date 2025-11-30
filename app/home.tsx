@@ -91,27 +91,45 @@ export default function HomeScreen() {
 
   const greeting = getTimeBasedGreeting();
 
-  const handleStartAssessment = (subject: Subject, progressRecord: SubjectProgress | undefined) => {
-    console.log("=== STARTING ASSESSMENT ===");
+  const handleSubjectPress = (subject: Subject, progressRecord: SubjectProgress | undefined) => {
+    console.log("=== SUBJECT PRESSED ===");
     console.log("Subject:", subject.name);
     console.log("Subject ID (constant):", subject.id);
     console.log("Progress Record:", progressRecord);
     console.log("Database ID:", progressRecord?.id);
+    console.log("Status:", progressRecord?.status);
 
     if (!progressRecord) {
       Alert.alert("Error", "Subject progress record not found. Please try again.");
       return;
     }
 
-    router.push({
-      pathname: "/assessment-intro",
-      params: {
-        subjectProgressId: progressRecord.id,
-        subjectName: subject.name,
-        subjectIcon: subject.icon,
-        subjectColor: subject.color,
-      },
-    });
+    // Check status to determine where to navigate
+    if (progressRecord.status === "lets_bridge_gaps") {
+      // Navigate to AI Tutor
+      console.log("Navigating to AI Tutor");
+      router.push({
+        pathname: "/ai-tutor",
+        params: {
+          subjectProgressId: progressRecord.id,
+          subjectName: subject.name,
+          subjectIcon: subject.icon,
+          subjectColor: subject.color,
+        },
+      });
+    } else {
+      // Navigate to Assessment Intro (default: getting_to_know_you)
+      console.log("Navigating to Assessment Intro");
+      router.push({
+        pathname: "/assessment-intro",
+        params: {
+          subjectProgressId: progressRecord.id,
+          subjectName: subject.name,
+          subjectIcon: subject.icon,
+          subjectColor: subject.color,
+        },
+      });
+    }
   };
 
   const navigateToHome = () => {
@@ -223,7 +241,7 @@ export default function HomeScreen() {
                         { borderColor: subject.color },
                         pressed && styles.subjectCardPressed,
                       ]}
-                      onPress={() => handleStartAssessment(subject, progressRecord)}
+                      onPress={() => handleSubjectPress(subject, progressRecord)}
                     >
                       <View style={styles.subjectHeader}>
                         <Text style={styles.subjectIcon}>{subject.icon}</Text>
