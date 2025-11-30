@@ -140,112 +140,151 @@ export const [UserProvider, useUser] = createContextHook(() => {
 
   const signup = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log("Starting signup process...");
+      console.log("========== SIGNUP PROCESS STARTED ==========");
+      console.log("Timestamp:", new Date().toISOString());
+      console.log("Email:", email.trim().toLowerCase());
+      console.log("Name:", name.trim());
+      console.log("Password length:", password.length);
       
-      const { data, error } = await supabase.auth.signUp({
+      console.log("\n[STEP 1] Creating auth user...");
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
       });
 
-      if (error) {
-        console.error("Auth signup error:", error);
+      if (authError) {
+        console.error("❌ [STEP 1] Auth error occurred:");
+        console.error("Error object:", JSON.stringify(authError, null, 2));
+        console.error("Error message:", authError.message);
+        console.error("Error status:", authError.status);
+        console.error("Error name:", authError.name);
+        
         let errorMessage = "Failed to create account";
         
-        if (error.message.includes("already registered")) {
+        if (authError.message.includes("already registered")) {
           errorMessage = "This email is already registered";
-        } else if (error.message.includes("Password")) {
+        } else if (authError.message.includes("Password")) {
           errorMessage = "Password must be at least 6 characters";
-        } else if (error.message.includes("email")) {
+        } else if (authError.message.includes("email")) {
           errorMessage = "Invalid email format";
-        } else if (error.message.includes("network")) {
+        } else if (authError.message.includes("network")) {
           errorMessage = "Network error - check your connection";
         } else {
-          errorMessage = error.message || "Failed to create account";
+          errorMessage = authError.message || "Failed to create account";
         }
         
+        console.error("User-facing error message:", errorMessage);
         return { success: false, error: errorMessage };
       }
 
-      if (!data?.user) {
-        console.error("No user returned from signup");
-        return { success: false, error: "Failed to create account. Please try again." };
+      if (!authData?.user?.id) {
+        console.error("❌ [STEP 1] No user ID returned");
+        console.error("Auth data received:", JSON.stringify(authData, null, 2));
+        return { success: false, error: "Signup failed - no user created" };
       }
 
-      const userId = data.user.id;
-      console.log("Auth user created successfully. User ID:", userId);
+      const userId = authData.user.id;
+      console.log("✓ [STEP 1] Auth user created successfully");
+      console.log("User ID:", userId);
+      console.log("User email:", authData.user.email);
+      console.log("User created at:", authData.user.created_at);
 
-      console.log("Waiting for auth to settle...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("\n[STEP 2] Waiting for auth to fully process...");
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log("✓ [STEP 2] Wait complete");
 
-      console.log("Creating profile FIRST (required for foreign key)...");
-      const { error: profileError } = await supabase
+      console.log("\n[STEP 3] Creating profile (required for foreign keys)...");
+      const profileData = {
+        id: userId,
+        full_name: name.trim(),
+        email: email.trim().toLowerCase(),
+        grade: "10"
+      };
+      console.log("Profile data to insert:", JSON.stringify(profileData, null, 2));
+      
+      const { data: profileInsertData, error: profileError } = await supabase
         .from("profiles")
-        .insert({
-          id: userId,
-          full_name: name.trim(),
-          email: email.trim().toLowerCase(),
-          grade: "10",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select();
+        .insert(profileData)
+        .select()
+        .single();
 
       if (profileError) {
-        console.error("Profile creation error:", profileError);
-        console.error("Profile error code:", profileError.code);
-        console.error("Profile error details:", profileError.details);
-        console.error("Profile error hint:", profileError.hint);
+        console.error("❌ [STEP 3] Profile error occurred:");
+        console.error("Error code:", profileError.code);
+        console.error("Error message:", profileError.message);
+        console.error("Error details:", profileError.details);
+        console.error("Error hint:", profileError.hint);
+        console.error("Full error object:", JSON.stringify(profileError, null, 2));
         
-        const { data: existingProfile } = await supabase
+        console.log("\n[STEP 3.1] Checking if profile exists from trigger...");
+        const { data: checkProfile, error: checkError } = await supabase
           .from("profiles")
-          .select("id")
+          .select("*")
           .eq("id", userId)
           .single();
         
-        if (!existingProfile) {
-          return { success: false, error: "Failed to create profile. Please try again." };
+        if (checkError) {
+          console.error("❌ [STEP 3.1] Profile check error:", JSON.stringify(checkError, null, 2));
+          return { success: false, error: `Profile creation failed: ${profileError.message || 'Unknown error'}` };
         }
-        console.log("Profile exists from trigger");
+
+        if (checkProfile) {
+          console.log("✓ [STEP 3.1] Profile already exists from trigger");
+          console.log("Existing profile:", JSON.stringify(checkProfile, null, 2));
+        } else {
+          console.error("❌ [STEP 3.1] Profile does not exist and could not be created");
+          return { success: false, error: "Failed to create profile" };
+        }
       } else {
-        console.log("Profile created successfully");
+        console.log("✓ [STEP 3] Profile created successfully");
+        console.log("Profile data:", JSON.stringify(profileInsertData, null, 2));
       }
 
-      console.log("Now creating user stats (after profile exists)...");
-      const { error: statsError } = await supabase
+      console.log("\n[STEP 4] Creating user stats (after profile exists)...");
+      const statsData = {
+        user_id: userId,
+        total_xp: 0,
+        current_level: 1,
+        streak_count: 0,
+        last_activity_date: new Date().toISOString().split('T')[0],
+        concepts_mastered: 0,
+        quizzes_completed: 0
+      };
+      console.log("Stats data to insert:", JSON.stringify(statsData, null, 2));
+      
+      const { data: statsInsertData, error: statsError } = await supabase
         .from("user_stats")
-        .insert({
-          user_id: userId,
-          total_xp: 0,
-          current_level: 1,
-          streak_count: 0,
-          last_activity_date: new Date().toISOString().split('T')[0],
-          concepts_mastered: 0,
-          quizzes_completed: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        .insert(statsData)
+        .select()
+        .single();
 
       if (statsError) {
-        console.error("Stats creation error:", statsError);
-        console.error("Stats error code:", statsError.code);
+        console.error("❌ [STEP 4] Stats error occurred:");
+        console.error("Error code:", statsError.code);
+        console.error("Error message:", statsError.message);
+        console.error("Full error object:", JSON.stringify(statsError, null, 2));
         
-        const { data: existingStats } = await supabase
+        console.log("\n[STEP 4.1] Checking if stats exist from trigger...");
+        const { data: checkStats, error: checkStatsError } = await supabase
           .from("user_stats")
-          .select("user_id")
+          .select("*")
           .eq("user_id", userId)
           .single();
         
-        if (!existingStats) {
-          console.error("Stats creation failed and does not exist");
+        if (checkStatsError) {
+          console.error("❌ [STEP 4.1] Stats check error:", JSON.stringify(checkStatsError, null, 2));
+        } else if (checkStats) {
+          console.log("✓ [STEP 4.1] Stats already exist from trigger");
+          console.log("Existing stats:", JSON.stringify(checkStats, null, 2));
         } else {
-          console.log("Stats exist from trigger");
+          console.error("⚠️ [STEP 4.1] Stats creation failed but not critical");
         }
       } else {
-        console.log("User stats created successfully");
+        console.log("✓ [STEP 4] User stats created successfully");
+        console.log("Stats data:", JSON.stringify(statsInsertData, null, 2));
       }
 
-      console.log("Signup completed successfully!");
-      
+      console.log("\n[STEP 5] Setting up local user state...");
       const tempUser: UserProfile = {
         name: name.trim(),
         email: email.trim().toLowerCase(),
@@ -255,12 +294,27 @@ export const [UserProvider, useUser] = createContextHook(() => {
         hasCompletedOnboarding: false,
       };
       setUser(tempUser);
+      console.log("✓ [STEP 5] Local user state set");
 
-      console.log("Navigating to grade selection...");
+      console.log("\n[STEP 6] Navigating to grade selection...");
       router.push("/grade-selection");
+      console.log("✓ [STEP 6] Navigation initiated");
+      
+      console.log("\n========== SIGNUP PROCESS COMPLETED SUCCESSFULLY ==========");
       return { success: true };
     } catch (error) {
-      console.error("Signup exception:", error);
+      console.error("\n========== SIGNUP PROCESS FAILED ==========");
+      console.error("Unexpected error caught:");
+      console.error("Error type:", typeof error);
+      console.error("Error instanceof Error:", error instanceof Error);
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      console.error("Full error object:", JSON.stringify(error, null, 2));
+      console.error("String representation:", String(error));
+      
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       return { success: false, error: errorMessage };
     }
