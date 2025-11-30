@@ -205,8 +205,12 @@ const generateSampleQuestions = (subjectName: string): Question[] => {
 
 export default function AssessmentQuizScreen() {
   const params = useLocalSearchParams();
-  const subjectId = params.subjectId as string;
+  const subjectProgressId = params.subjectProgressId as string;
   const subjectName = params.subjectName as string;
+
+  console.log("=== ASSESSMENT QUIZ ===");
+  console.log("Subject Progress ID:", subjectProgressId);
+  console.log("Subject Name:", subjectName);
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -286,15 +290,20 @@ export default function AssessmentQuizScreen() {
 
   const finishAssessment = () => {
     console.log("=== FINISHING ASSESSMENT ===");
-    console.log("Subject ID being passed:", subjectId);
+    console.log("Subject Progress ID being passed:", subjectProgressId);
     console.log("Subject Name:", subjectName);
     console.log("Total questions:", questions.length);
     console.log("Total answers:", Object.keys(answers).length);
+
+    if (!subjectProgressId) {
+      console.error("No subject progress ID available");
+      return;
+    }
     
     router.push({
       pathname: "/assessment-results",
       params: {
-        subjectId,
+        subjectProgressId,
         subjectName,
         questionsData: JSON.stringify(questions),
         answersData: JSON.stringify(answers),

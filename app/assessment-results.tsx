@@ -67,10 +67,14 @@ const getEncouragingMessage = (score: number) => {
 
 export default function AssessmentResultsScreen() {
   const params = useLocalSearchParams();
-  const subjectId = params.subjectId as string;
+  const subjectProgressId = params.subjectProgressId as string;
   const subjectName = params.subjectName as string;
   const questionsData = params.questionsData as string;
   const answersData = params.answersData as string;
+
+  console.log("=== ASSESSMENT RESULTS ===");
+  console.log("Subject Progress ID:", subjectProgressId);
+  console.log("Subject Name:", subjectName);
 
   const { authUser, refreshData } = useUser();
   const [loading, setLoading] = useState<boolean>(true);
@@ -90,63 +94,37 @@ export default function AssessmentResultsScreen() {
       const userId = authUser.id;
       console.log("=== SAVING ASSESSMENT ===");
       console.log("User ID:", userId);
-      console.log("Subject ID:", subjectId);
+      console.log("Subject Progress ID:", subjectProgressId);
       console.log("Subject Name:", subjectName);
       console.log("Score:", analysis.score);
 
-      // First, verify the subject exists
-      console.log("Looking up subject progress record...");
-      const { data: existingSubject, error: checkError } = await supabase
-        .from("subject_progress")
-        .select("*")
-        .eq("id", subjectId)
-        .single();
-
-      if (checkError) {
-        console.error("Subject check error:", checkError);
-        console.error("Cannot find subject with ID:", subjectId);
-        
-        // Try to find by user_id and subject name instead
-        console.log("Trying to find by user_id and subject name...");
-        const { data: subjectByName, error: nameError } = await supabase
-          .from("subject_progress")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("subject", subjectName)
-          .single();
-
-        if (nameError || !subjectByName) {
-          console.error("Subject not found by name either:", nameError);
-          Alert.alert("Error", "Could not find subject to update. Please try again.");
-          return;
-        }
-
-        console.log("Found subject by name:", subjectByName.id);
-        
-        // Update using the correct ID
-        const { data: updateData, error: updateError } = await supabase
-          .from("subject_progress")
-          .update({
-            status: "lets_bridge_gaps",
-            mastery_percentage: analysis.score,
-            last_updated: new Date().toISOString(),
-          })
-          .eq("id", subjectByName.id)
-          .select();
-
-        if (updateError) {
-          console.error("❌ Update error:", updateError);
-          Alert.alert("Save Error", "Failed to save assessment results");
-        } else {
-          console.log("✅ Assessment saved successfully!");
-          console.log("Updated data:", updateData);
-          await refreshData();
-        }
-
+      if (!subjectProgressId) {
+        console.error("❌ No subject progress ID provided");
+        Alert.alert("Error", "Subject ID is missing. Cannot save assessment.");
         return;
       }
 
-      console.log("Subject found:", existingSubject);
+      // Verify the subject exists
+      console.log("Verifying subject progress record...");
+      const { data: existingSubject, error: checkError } = await supabase
+        .from("subject_progress")
+        .select("*")
+        .eq("id", subjectProgressId)
+        .eq("user_id", userId)
+        .single();
+
+      if (checkError || !existingSubject) {
+        console.error("❌ Subject verification failed:", checkError);
+        console.error("Subject Progress ID:", subjectProgressId);
+        console.error("User ID:", userId);
+        Alert.alert(
+          "Error",
+          "Could not find subject to update. Please try the assessment again."
+        );
+        return;
+      }
+
+      console.log("✅ Subject found:", existingSubject.subject);
 
       // Update the subject status
       const { data: updateData, error: updateError } = await supabase
@@ -154,65 +132,40 @@ export default function AssessmentResultsScreen() {
         .update({
           status: "lets_bridge_gaps",
           mastery_percentage: analysis.score,
-          last_updated: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
-        .eq("id", subjectId)
+        .eq("id", subjectProgressId)
+        .eq("user_id", userId)
         .select();
 
       if (updateError) {
         console.error("❌ Update error:", updateError);
         console.error("Error details:", JSON.stringify(updateError));
         Alert.alert("Save Error", `Failed to save: ${updateError.message}`);
-      } else {
-        console.log("✅ Subject status updated successfully!");
-        console.log("Updated data:", updateData);
-        
-        if (!updateData || updateData.length === 0) {
-          console.warn("Update succeeded but no rows returned");
-        }
+        return;
       }
 
-      // After updating subject_progress, also save full assessment record
-      console.log("Saving full assessment record...");
-      const { error: assessmentError } = await supabase
-        .from("assessments")
-        .insert({
-          user_id: userId,
-          subject_id: subjectId,
-          subject_name: subjectName,
-          score: analysis.score,
-          total_questions: analysis.totalQuestions,
-          correct_answers: analysis.correctAnswers,
-          skipped_questions: analysis.skippedQuestions,
-          assessment_data: {
-            questions: questions,
-            answers: answers,
-            gap_analysis: {
-              strongConcepts: analysis.strongConcepts,
-              needsReview: analysis.needsReview,
-              criticalGaps: analysis.criticalGaps,
-              learningPath: analysis.learningPath,
-            },
-          },
-          completed_at: new Date().toISOString(),
-        });
-
-      if (assessmentError) {
-        console.error("❌ Assessment record save error:", assessmentError);
-        console.error("Assessment error details:", JSON.stringify(assessmentError));
-      } else {
-        console.log("✅ Full assessment record saved successfully!");
+      console.log("✅ Subject status updated successfully!");
+      console.log("Updated rows:", updateData?.length || 0);
+      if (updateData && updateData.length > 0) {
+        console.log("New status:", updateData[0].status);
+        console.log("New mastery:", updateData[0].mastery_percentage, "%");
       }
 
+      // Refresh user data to show updated progress
+      console.log("Refreshing user data...");
       await refreshData();
+      console.log("✅ Assessment save complete!");
 
     } catch (error) {
       console.error("❌ Save assessment exception:", error);
       if (error instanceof Error) {
         console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
       }
+      Alert.alert("Error", "Failed to save assessment. Please try again.");
     }
-  }, [authUser, subjectId, subjectName, refreshData]);
+  }, [authUser, subjectProgressId, subjectName, refreshData]);
 
   const analyzeResults = useCallback(async () => {
     try {

@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import React from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { SUBJECTS } from "@/constants/types";
 
 const getConfidenceEmoji = (level: number) => {
   if (level <= 3) return "😰";
@@ -23,29 +23,38 @@ const getConfidenceEmoji = (level: number) => {
 
 export default function AssessmentIntroScreen() {
   const params = useLocalSearchParams();
-  const subjectId = params.subjectId as string;
+  const subjectProgressId = params.subjectProgressId as string;
+  const subjectName = params.subjectName as string;
+  const subjectIcon = params.subjectIcon as string;
+  const subjectColor = params.subjectColor as string;
 
-  const subject = SUBJECTS.find((s) => s.id === subjectId);
+  console.log("=== ASSESSMENT INTRO ===");
+  console.log("Subject Progress ID:", subjectProgressId);
+  console.log("Subject Name:", subjectName);
 
-  if (!subject) {
+  if (!subjectProgressId || !subjectName) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Subject not found</Text>
+        <Text style={styles.errorText}>Subject information missing</Text>
       </View>
     );
   }
 
   const handleStartAssessment = () => {
-    console.log("=== STARTING ASSESSMENT ===");
-    console.log("Subject ID:", subject.id);
-    console.log("Subject Name:", subject.name);
-    console.log("Subject Object:", subject);
+    console.log("=== NAVIGATING TO QUIZ ===");
+    console.log("Passing Subject Progress ID:", subjectProgressId);
+    console.log("Passing Subject Name:", subjectName);
     
+    if (!subjectProgressId) {
+      Alert.alert("Error", "Subject ID is missing. Please go back and try again.");
+      return;
+    }
+
     router.push({
       pathname: "/assessment-quiz",
       params: {
-        subjectId: subject.id,
-        subjectName: subject.name,
+        subjectProgressId: subjectProgressId,
+        subjectName: subjectName,
       },
     });
   };
@@ -80,7 +89,7 @@ export default function AssessmentIntroScreen() {
 
           <View style={styles.content}>
             <Text style={styles.title}>
-              Let&apos;s understand where you are in {subject.name}! 📚
+              Let&apos;s understand where you are in {subjectName}! 📚
             </Text>
 
             <Text style={styles.subtitle}>
@@ -115,7 +124,7 @@ export default function AssessmentIntroScreen() {
               <View style={styles.currentInfoCard}>
                 <View style={styles.currentInfoRow}>
                   <Text style={styles.currentInfoLabel}>Subject:</Text>
-                  <Text style={styles.currentInfoValue}>{subject.name}</Text>
+                  <Text style={styles.currentInfoValue}>{subjectName}</Text>
                 </View>
                 <View style={styles.currentInfoRow}>
                   <Text style={styles.currentInfoLabel}>
@@ -133,7 +142,7 @@ export default function AssessmentIntroScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.startButton,
-                { backgroundColor: subject.color },
+                { backgroundColor: subjectColor || Colors.primary },
                 pressed && styles.startButtonPressed,
               ]}
               onPress={handleStartAssessment}

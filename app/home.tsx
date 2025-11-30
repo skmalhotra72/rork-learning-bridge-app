@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { ArrowRight, Flame, Menu, Trophy } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Modal,
   Pressable,
@@ -14,9 +15,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { SUBJECTS } from "@/constants/types";
+import { SUBJECTS, type Subject } from "@/constants/types";
 import { useUser } from "@/contexts/UserContext";
-import { supabase } from "@/lib/supabase";
+import { supabase, SubjectProgress } from "@/lib/supabase";
 
 const getTimeBasedGreeting = () => {
   const hour = new Date().getHours();
@@ -27,9 +28,10 @@ const getTimeBasedGreeting = () => {
 };
 
 export default function HomeScreen() {
-  const { user, stats: userStats, refreshData } = useUser();
+  const { user, stats: userStats, refreshData, authUser } = useUser();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [menuVisible, setMenuVisible] = useState(false);
+  const [subjectProgress, setSubjectProgress] = useState<SubjectProgress[]>([]);
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -42,10 +44,25 @@ export default function HomeScreen() {
       }
 
       await refreshData();
+
+      if (authUser) {
+        console.log("Loading subject progress for user:", authUser.id);
+        const { data: progressData, error: progressError } = await supabase
+          .from("subject_progress")
+          .select("*")
+          .eq("user_id", authUser.id);
+
+        if (progressError) {
+          console.error("Error loading subject progress:", progressError);
+        } else {
+          console.log("Loaded subject progress:", progressData?.length || 0, "subjects");
+          setSubjectProgress(progressData || []);
+        }
+      }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
     }
-  }, [refreshData]);
+  }, [refreshData, authUser]);
 
   useEffect(() => {
     Animated.loop(
@@ -74,11 +91,26 @@ export default function HomeScreen() {
 
   const greeting = getTimeBasedGreeting();
 
-  const handleStartAssessment = (subjectId: string) => {
-    console.log(`Starting assessment for subject ${subjectId}`);
+  const handleStartAssessment = (subject: Subject, progressRecord: SubjectProgress | undefined) => {
+    console.log("=== STARTING ASSESSMENT ===");
+    console.log("Subject:", subject.name);
+    console.log("Subject ID (constant):", subject.id);
+    console.log("Progress Record:", progressRecord);
+    console.log("Database ID:", progressRecord?.id);
+
+    if (!progressRecord) {
+      Alert.alert("Error", "Subject progress record not found. Please try again.");
+      return;
+    }
+
     router.push({
       pathname: "/assessment-intro",
-      params: { subjectId },
+      params: {
+        subjectProgressId: progressRecord.id,
+        subjectName: subject.name,
+        subjectIcon: subject.icon,
+        subjectColor: subject.color,
+      },
     });
   };
 
@@ -167,6 +199,14 @@ export default function HomeScreen() {
             <View style={styles.subjectGrid}>
               {userSubjects.map((subject) => {
                 if (!subject) return null;
+                
+                const progressRecord = subjectProgress.find(
+                  (p) => p.subject === subject.id
+                );
+                
+                const masteryPercentage = progressRecord?.mastery_percentage || 0;
+                const status = progressRecord?.status || "getting_to_know_you";
+                
                 return (
                   <Animated.View
                     key={subject.id}
@@ -183,7 +223,7 @@ export default function HomeScreen() {
                         { borderColor: subject.color },
                         pressed && styles.subjectCardPressed,
                       ]}
-                      onPress={() => handleStartAssessment(subject.id)}
+                      onPress={() => handleStartAssessment(subject, progressRecord)}
                     >
                       <View style={styles.subjectHeader}>
                         <Text style={styles.subjectIcon}>{subject.icon}</Text>
@@ -193,14 +233,16 @@ export default function HomeScreen() {
                             { backgroundColor: `${subject.color}20` },
                           ]}
                         >
-                          <Text style={styles.statusText}>🔍</Text>
+                          <Text style={styles.statusText}>
+                            {status === "lets_bridge_gaps" ? "🎯" : "🔍"}
+                          </Text>
                         </View>
                       </View>
 
                       <Text style={styles.subjectName}>{subject.name}</Text>
 
                       <View style={styles.progressRing}>
-                        <Text style={styles.progressPercentage}>0%</Text>
+                        <Text style={styles.progressPercentage}>{masteryPercentage}%</Text>
                       </View>
 
                       <View
@@ -209,7 +251,9 @@ export default function HomeScreen() {
                           { backgroundColor: subject.color },
                         ]}
                       >
-                        <Text style={styles.assessmentText}>Start Assessment</Text>
+                        <Text style={styles.assessmentText}>
+                          {status === "lets_bridge_gaps" ? "Start Learning" : "Start Assessment"}
+                        </Text>
                         <ArrowRight size={16} color="#FFFFFF" />
                       </View>
                     </Pressable>
