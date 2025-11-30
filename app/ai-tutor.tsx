@@ -22,7 +22,7 @@ import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 
 import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
-import { buildMultilingualSystemPrompt, getLanguageSettings, LanguageSettings } from "@/services/multilingualPrompts";
+import { getLanguageSettings, LanguageSettings } from "@/services/multilingualPrompts";
 
 interface Message {
   id: string;
@@ -240,26 +240,14 @@ export default function AITutorScreen() {
         return;
       }
 
-      console.log('Building multilingual system prompt...');
-      
-      const systemPrompt = await buildMultilingualSystemPrompt(
-        authUser.id,
-        subjectName,
-        'Current Topic',
-        userMessage
-      );
-      
-      console.log('Multilingual prompt built');
-      console.log('Using language:', languageSettings?.preferred_tutoring_language || 'English');
-
-      let fullMessage = systemPrompt;
-
-      if (selectedImage) {
-        fullMessage += "\n\n[Note: Student has uploaded an image. Please acknowledge it and ask them to describe what they see or need help with, since image analysis is not yet available.]";
-      }
-
       console.log('Sending message to AI...');
-      await sendMessage(fullMessage);
+      console.log('User message:', userMessage);
+      
+      if (selectedImage) {
+        console.log('Note: Image selected but image analysis not yet implemented');
+      }
+      
+      await sendMessage(userMessage);
       console.log("✅ Message sent successfully");
 
       setSessionData(prev => ({
