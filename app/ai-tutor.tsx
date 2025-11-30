@@ -1,9 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, Send } from "lucide-react-native";
+import * as ImagePicker from 'expo-image-picker';
+import { ArrowLeft, Send, ImagePlus } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,20 +21,24 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRorkAgent } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
+import { buildSystemPrompt, buildPracticeProblemPrompt } from "@/services/aiPrompts";
+import { saveLearningSession } from "@/services/learningHistory";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  imageUri?: string;
 }
 
 export default function AITutorScreen() {
   const params = useLocalSearchParams();
   const subjectName = params.subjectName as string;
   const subjectIcon = params.subjectIcon as string;
+  const subjectProgressId = params.subjectProgressId as string;
 
-  const { user } = useUser();
+  const { user, authUser } = useUser();
   const scrollViewRef = useRef<ScrollView>(null);
   
   const [inputText, setInputText] = useState<string>("");
@@ -39,10 +46,17 @@ export default function AITutorScreen() {
     {
       id: "1",
       role: "assistant",
-      content: `Hi! I'm Buddy ${subjectIcon}\n\nI'm your personal ${subjectName} tutor. I've analyzed your assessment and I'm here to help you master the concepts you found challenging.\n\nYou can ask me to:\n📖 Explain concepts in simple terms\n✏️ Give you practice problems\n🤔 Answer your questions\n💡 Break down complex topics\n\nWhat would you like to learn about today?`,
+      content: `Hi! I'm Buddy ${subjectIcon}\n\nI'm your personal ${subjectName} tutor. I've analyzed your assessment and I'm here to help you master the concepts you found challenging.\n\nYou can ask me to:\n📖 Explain concepts in simple terms\n✏️ Give you practice problems\n🤔 Answer your questions\n💡 Break down complex topics\n📷 Analyze uploaded images\n\nWhat would you like to learn about today?`,
       timestamp: new Date(),
     },
   ]);
+  const [sessionData, setSessionData] = useState({
+    conceptsExplained: [] as string[],
+    problemsSolved: 0,
+    mistakes: [] as string[],
+    startTime: Date.now()
+  });
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const { messages, sendMessage } = useRorkAgent({
     tools: {},
@@ -81,29 +95,85 @@ export default function AITutorScreen() {
     }, 100);
   }, [chatMessages]);
 
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Camera permission not granted');
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      saveSession();
+    };
+  }, []);
+
+  const saveSession = async () => {
+    if (!authUser?.id) return;
+    if (sessionData.conceptsExplained.length === 0 && sessionData.problemsSolved === 0) return;
+    
+    try {
+      const duration = Math.floor((Date.now() - sessionData.startTime) / 1000);
+      
+      await saveLearningSession({
+        user_id: authUser.id,
+        subject: subjectName,
+        chapter: 'Current Chapter',
+        concept: 'General Learning',
+        conversation_summary: `Learned about ${subjectName}. ${sessionData.conceptsExplained.length} concepts explained.`,
+        concepts_explained: sessionData.conceptsExplained,
+        problems_solved: sessionData.problemsSolved,
+        mistakes_made: sessionData.mistakes,
+        understanding_level: 7,
+        session_duration: duration
+      });
+    } catch (error) {
+      console.error('Session save error:', error);
+    }
+  };
+
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() && !selectedImage) return;
 
     const userMessage = inputText.trim();
     setInputText("");
 
     console.log("=== SENDING MESSAGE TO AI ===");
     console.log("User message:", userMessage);
-    console.log("User context:", {
-      name: user?.name,
-      grade: user?.grade,
-      subject: subjectName,
-    });
-
-    const contextualMessage = `I am a CBSE Class ${user?.grade || "10"} student learning ${subjectName}. Please act as my friendly tutor Buddy 🦉.
-
-Use simple language, Indian examples, and be encouraging. Break down concepts step-by-step.
-
-My question: ${userMessage}`;
+    console.log("Selected image:", selectedImage ? 'Yes' : 'No');
 
     try {
-      await sendMessage(contextualMessage);
+      if (!authUser?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      const systemPrompt = await buildSystemPrompt(
+        authUser.id,
+        subjectName,
+        'Current Topic',
+        userMessage
+      );
+
+      console.log('System prompt built');
+
+      let messageToSend = systemPrompt + "\n\nStudent's question: " + userMessage;
+
+      if (selectedImage) {
+        messageToSend += "\n\n[Student has uploaded an image. Acknowledge it and ask them to describe what they see or need help with.]";
+      }
+
+      await sendMessage(messageToSend);
       console.log("✅ Message sent successfully");
+
+      setSessionData(prev => ({
+        ...prev,
+        conceptsExplained: [...prev.conceptsExplained, 'Current Topic']
+      }));
+
+      setSelectedImage(null);
     } catch (error) {
       console.error("❌ Error sending message:", error);
       setChatMessages((prev) => [
@@ -118,19 +188,115 @@ My question: ${userMessage}`;
     }
   };
 
-  const handleExplainConcept = () => {
+  const handleExplainConcept = async () => {
+    if (!authUser?.id) return;
+
     const message = "Can you explain the main concepts I need to focus on?";
     setInputText(message);
+    
+    setSessionData(prev => ({
+      ...prev,
+      conceptsExplained: [...prev.conceptsExplained, 'Main Concepts']
+    }));
   };
 
-  const handlePracticeProblem = () => {
+  const handlePracticeProblem = async () => {
+    if (!authUser?.id) return;
+
     const message = "Can you give me a practice problem to solve?";
     setInputText(message);
+    
+    setSessionData(prev => ({
+      ...prev,
+      problemsSolved: prev.problemsSolved + 1
+    }));
   };
 
   const handleHint = () => {
     const message = "Can you give me a hint?";
     setInputText(message);
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        handleImageSelected(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        handleImageSelected(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to select image');
+    }
+  };
+
+  const handleImageSelected = (imageUri: string) => {
+    setSelectedImage(imageUri);
+    
+    Alert.alert(
+      'Image Selected',
+      'What would you like me to help with?',
+      [
+        {
+          text: 'Explain this',
+          onPress: () => {
+            setInputText('Can you explain what\'s in this image?');
+          }
+        },
+        {
+          text: 'Solve this problem',
+          onPress: () => {
+            setInputText('Can you help me solve this problem?');
+          }
+        },
+        {
+          text: 'Check my work',
+          onPress: () => {
+            setInputText('Can you check if my work is correct?');
+          }
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => setSelectedImage(null)
+        }
+      ]
+    );
+  };
+
+  const handleImageUpload = () => {
+    Alert.alert(
+      '📷 Add Image',
+      'Upload an image from your textbook or homework for help',
+      [
+        { text: 'Take Photo', onPress: handleTakePhoto },
+        { text: 'Choose from Gallery', onPress: handlePickImage },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
   };
 
   const isLoading = messages.some(
@@ -245,9 +411,10 @@ My question: ${userMessage}`;
                 styles.quickButton,
                 pressed && styles.quickButtonPressed,
               ]}
-              onPress={handleHint}
+              onPress={handleImageUpload}
             >
-              <Text style={styles.quickButtonText}>💡 Hint</Text>
+              <ImagePlus size={16} color={Colors.text} />
+              <Text style={styles.quickButtonText}>📷 Image</Text>
             </Pressable>
           </View>
 
@@ -416,6 +583,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 4,
     borderWidth: 1,
     borderColor: Colors.border,
   },
