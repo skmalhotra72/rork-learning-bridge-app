@@ -147,6 +147,11 @@ export default function HomeScreen() {
     router.push("/profile");
   };
 
+  const navigateToBadges = () => {
+    setMenuVisible(false);
+    router.push("/badges");
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -331,6 +336,16 @@ export default function HomeScreen() {
               onPress={navigateToProfile}
             >
               <Text style={styles.menuItemText}>👤 Profile</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.menuItemPressed,
+              ]}
+              onPress={navigateToBadges}
+            >
+              <Text style={styles.menuItemText}>🏆 Badges</Text>
             </Pressable>
 
             <Pressable
