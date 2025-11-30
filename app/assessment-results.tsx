@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
+import { addXP, updateStreak, checkBadgeEligibility } from "@/services/gamification";
 
 interface Question {
   id: string;
@@ -79,6 +80,13 @@ export default function AssessmentResultsScreen() {
   const { authUser, refreshData } = useUser();
   const [loading, setLoading] = useState<boolean>(true);
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysis | null>(null);
+  const [gamificationData, setGamificationData] = useState<{
+    xpEarned: number;
+    leveledUp: boolean;
+    newLevel?: number;
+    streakDay: number;
+    badgeEarned?: string;
+  } | null>(null);
 
   const saveAssessment = useCallback(async (
     analysis: GapAnalysis,
@@ -151,6 +159,72 @@ export default function AssessmentResultsScreen() {
         console.log("New status:", updateData[0].status);
         console.log("New mastery:", updateData[0].mastery_percentage, "%");
       }
+
+      // ===== GAMIFICATION REWARDS =====
+      console.log("=== AWARDING GAMIFICATION REWARDS ===");
+      
+      // Calculate XP (10 XP per correct answer)
+      const xpEarned = analysis.correctAnswers * 10;
+      
+      // Add bonus XP for perfect score
+      const bonusXP = analysis.score === 100 ? 50 : 0;
+      const totalXP = xpEarned + bonusXP;
+
+      // Award XP
+      const xpResult = await addXP(
+        userId,
+        totalXP,
+        `Assessment completed: ${analysis.score}%`,
+        'assessment',
+        subjectName
+      );
+
+      console.log(`✅ Awarded ${totalXP} XP (${xpEarned} base + ${bonusXP} bonus)`);
+
+      // Update streak
+      const streakResult = await updateStreak(userId);
+      console.log(`✅ Streak updated: ${streakResult.currentStreak} days`);
+
+      // Check for badges
+      await checkBadgeEligibility(userId, 'quiz_completed', analysis.score, {
+        subject: subjectName
+      });
+
+      // Update user stats - get current stats first
+      const { data: currentStats } = await supabase
+        .from('user_stats')
+        .select('total_quizzes, perfect_quizzes')
+        .eq('user_id', userId)
+        .single();
+
+      const totalQuizzes = (currentStats?.total_quizzes || 0) + 1;
+      const perfectQuizzes = (currentStats?.perfect_quizzes || 0) + (analysis.score === 100 ? 1 : 0);
+
+      const { error: statsError } = await supabase
+        .from('user_stats')
+        .update({
+          total_quizzes: totalQuizzes,
+          perfect_quizzes: perfectQuizzes
+        })
+        .eq('user_id', userId);
+
+      if (statsError) {
+        console.error('Stats update error:', statsError);
+      } else {
+        console.log('✅ User stats updated');
+      }
+
+      // Store gamification data to display
+      setGamificationData({
+        xpEarned: totalXP,
+        leveledUp: xpResult.leveledUp || false,
+        newLevel: xpResult.newLevel,
+        streakDay: streakResult.currentStreak || 0,
+        badgeEarned: streakResult.badgeEarned
+      });
+
+      console.log("✅ Gamification rewards complete!");
+      // ===== END GAMIFICATION =====
 
       // Refresh user data to show updated progress
       console.log("Refreshing user data...");
@@ -418,6 +492,44 @@ export default function AssessmentResultsScreen() {
               {getEncouragingMessage(gapAnalysis.score)}
             </Text>
           </View>
+
+          {gamificationData && (
+            <View style={styles.rewardsSection}>
+              <Text style={styles.rewardsSectionTitle}>🎉 Rewards Earned!</Text>
+              
+              <View style={styles.rewardsGrid}>
+                <View style={styles.rewardCard}>
+                  <Text style={styles.rewardEmoji}>⭐</Text>
+                  <Text style={styles.rewardValue}>+{gamificationData.xpEarned}</Text>
+                  <Text style={styles.rewardLabel}>XP Earned</Text>
+                </View>
+
+                <View style={styles.rewardCard}>
+                  <Text style={styles.rewardEmoji}>🔥</Text>
+                  <Text style={styles.rewardValue}>{gamificationData.streakDay}</Text>
+                  <Text style={styles.rewardLabel}>Day Streak</Text>
+                </View>
+              </View>
+
+              {gamificationData.leveledUp && (
+                <View style={styles.levelUpCard}>
+                  <Text style={styles.levelUpEmoji}>🎊</Text>
+                  <Text style={styles.levelUpText}>
+                    Level Up! You&apos;re now Level {gamificationData.newLevel}!
+                  </Text>
+                </View>
+              )}
+
+              {gamificationData.badgeEarned && (
+                <View style={styles.badgeEarnedCard}>
+                  <Text style={styles.badgeEarnedEmoji}>🏆</Text>
+                  <Text style={styles.badgeEarnedText}>
+                    New badge earned: {gamificationData.badgeEarned}!
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What I Learned About You 📊</Text>
@@ -757,5 +869,87 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold" as const,
     color: "#FFFFFF",
+  },
+  rewardsSection: {
+    marginBottom: 32,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: Colors.accent,
+  },
+  rewardsSectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold" as const,
+    color: Colors.text,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  rewardsGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  rewardCard: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  rewardEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  rewardValue: {
+    fontSize: 24,
+    fontWeight: "bold" as const,
+    color: Colors.primary,
+    marginBottom: 4,
+  },
+  rewardLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  levelUpCard: {
+    backgroundColor: `${Colors.primary}20`,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  levelUpEmoji: {
+    fontSize: 32,
+  },
+  levelUpText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: Colors.text,
+  },
+  badgeEarnedCard: {
+    backgroundColor: `${Colors.success}20`,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.success,
+  },
+  badgeEarnedEmoji: {
+    fontSize: 32,
+  },
+  badgeEarnedText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: Colors.text,
   },
 });

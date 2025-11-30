@@ -23,6 +23,7 @@ import { useUser } from "@/contexts/UserContext";
 
 import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
 import { getLanguageSettings, LanguageSettings, buildMultilingualSystemPrompt, buildMultilingualPracticeProblemPrompt } from "@/services/multilingualPrompts";
+import { addXP, updateStreak, checkBadgeEligibility } from "@/services/gamification";
 
 interface Message {
   id: string;
@@ -266,6 +267,19 @@ export default function AITutorScreen() {
       if (result.success) {
         console.log('✅ Learning session saved successfully');
         
+        // Award bonus XP for completing a meaningful session
+        if (duration >= 60) {
+          const sessionXP = Math.min(50, Math.floor(duration / 60) * 10);
+          await addXP(
+            authUser.id,
+            sessionXP,
+            `Completed ${Math.floor(duration / 60)} minute learning session`,
+            'session_complete',
+            subjectName
+          );
+          console.log(`✅ Awarded ${sessionXP} XP for session completion`);
+        }
+        
         if (sessionData.problemsSolved > 0) {
           const masteryLevel = Math.min(100, sessionData.problemsSolved * 20);
           await updateConceptMastery(
@@ -281,6 +295,14 @@ export default function AITutorScreen() {
             }
           );
           console.log('✅ Concept mastery updated');
+
+          // Check for badges based on problems solved
+          await checkBadgeEligibility(
+            authUser.id,
+            'concept_mastered',
+            sessionData.problemsSolved,
+            { subject: subjectName }
+          );
         }
       } else {
         console.error('❌ Failed to save session:', result.error);
@@ -342,6 +364,17 @@ export default function AITutorScreen() {
         tutoringLanguage: languageSettings?.preferred_tutoring_language || 'English'
       }));
 
+      // Award XP for active learning (asking questions)
+      await addXP(
+        authUser.id,
+        5,
+        `Asked question about ${subjectName}`,
+        'active_learning',
+        subjectName
+      );
+
+      console.log('✅ Awarded 5 XP for active learning');
+
       setSelectedImage(null);
     } catch (error) {
       console.error("❌ Error sending message:", error);
@@ -371,6 +404,21 @@ export default function AITutorScreen() {
       conceptsExplained: [...prev.conceptsExplained, 'Main Concepts'],
       keyPoints: [...prev.keyPoints, 'Concept explanation requested']
     }));
+
+    // Award XP for requesting concept explanation
+    await addXP(
+      authUser.id,
+      20,
+      `Learned about ${subjectName} concepts`,
+      'concept_mastery',
+      subjectName,
+      'Main Concepts'
+    );
+
+    // Update streak
+    await updateStreak(authUser.id);
+
+    console.log('✅ Awarded 20 XP for learning concepts');
   };
 
   const handlePracticeProblem = async () => {
@@ -402,6 +450,18 @@ export default function AITutorScreen() {
       problemsAttempted: prev.problemsAttempted + 1,
       keyPoints: [...prev.keyPoints, 'Practice problem requested']
     }));
+
+    // Award XP for attempting practice problem
+    await addXP(
+      authUser.id,
+      15,
+      `Practiced ${subjectName} problems`,
+      'concept_mastery',
+      subjectName,
+      'Practice Problem'
+    );
+
+    console.log('✅ Awarded 15 XP for practice problem');
   };
 
 
