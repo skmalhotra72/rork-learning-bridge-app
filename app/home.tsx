@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { ArrowRight, Flame, Menu, Trophy } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { SUBJECTS } from "@/constants/types";
 import { useUser } from "@/contexts/UserContext";
+import { supabase } from "@/lib/supabase";
 
 const getTimeBasedGreeting = () => {
   const hour = new Date().getHours();
@@ -26,9 +27,25 @@ const getTimeBasedGreeting = () => {
 };
 
 export default function HomeScreen() {
-  const { user } = useUser();
+  const { user, stats: userStats, refreshData } = useUser();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const loadDashboardData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.log("No session found, redirecting to welcome");
+        router.replace("/welcome");
+        return;
+      }
+
+      await refreshData();
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    }
+  }, [refreshData]);
 
   useEffect(() => {
     Animated.loop(
@@ -45,7 +62,9 @@ export default function HomeScreen() {
         }),
       ])
     ).start();
-  }, [pulseAnim]);
+
+    loadDashboardData();
+  }, [pulseAnim, loadDashboardData]);
 
   if (!user) return null;
 
@@ -110,7 +129,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.levelBadge}>
               <Trophy size={20} color={Colors.accent} />
-              <Text style={styles.levelText}>Level 1</Text>
+              <Text style={styles.levelText}>Level {userStats?.current_level ?? 1}</Text>
             </View>
           </View>
 
@@ -119,7 +138,7 @@ export default function HomeScreen() {
               <View style={styles.statIconContainer}>
                 <Flame size={24} color={Colors.accent} />
               </View>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>{userStats?.streak_count ?? 0}</Text>
               <Text style={styles.statLabel}>Day Streak</Text>
             </View>
 
@@ -127,7 +146,7 @@ export default function HomeScreen() {
               <View style={styles.statIconContainer}>
                 <Text style={styles.statIcon}>⚡</Text>
               </View>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>{userStats?.total_xp ?? 0}</Text>
               <Text style={styles.statLabel}>Total XP</Text>
             </View>
 
@@ -135,7 +154,7 @@ export default function HomeScreen() {
               <View style={styles.statIconContainer}>
                 <Text style={styles.statIcon}>🎯</Text>
               </View>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>{userStats?.concepts_mastered ?? 0}</Text>
               <Text style={styles.statLabel}>Concepts</Text>
             </View>
           </View>

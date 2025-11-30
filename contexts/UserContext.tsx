@@ -319,27 +319,43 @@ export const [UserProvider, useUser] = createContextHook(() => {
   };
 
   const completeOnboarding = async (): Promise<{ success: boolean; error?: string }> => {
-    if (!user || !authUser) {
-      return { success: false, error: "User not authenticated" };
+    if (!user) {
+      return { success: false, error: "User data not available" };
     }
 
     try {
+      console.log("========== COMPLETE ONBOARDING STARTED ==========");
+      console.log("Step 1: Getting current session...");
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        console.error("Session error:", sessionError);
+        return { success: false, error: "Please log in again" };
+      }
+
+      const userId = session.user.id;
+      console.log("User ID from session:", userId);
+
+      console.log("Step 2: Updating profile...");
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           grade: user.grade,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", authUser.id);
+        .eq("id", userId);
 
       if (profileError) {
         console.error("Profile update error:", profileError);
         return { success: false, error: "Failed to save profile" };
       }
+      console.log("Profile updated successfully");
 
+      console.log("Step 3: Preparing subject data...");
       const subjectData = user.subjectDetails.map((detail) => {
         return {
-          user_id: authUser.id,
+          user_id: userId,
           subject: detail.subjectId,
           current_chapter: detail.currentChapter,
           confidence_level: detail.confidence,
@@ -349,6 +365,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
         };
       });
 
+      console.log("Inserting subjects:", subjectData.length);
       const { error: subjectsError } = await supabase
         .from("subject_progress")
         .upsert(subjectData, { onConflict: "user_id,subject" });
@@ -357,11 +374,13 @@ export const [UserProvider, useUser] = createContextHook(() => {
         console.error("Subjects save error:", subjectsError);
         return { success: false, error: "Failed to save subjects" };
       }
+      console.log("Subjects saved successfully");
 
+      console.log("Step 4: Initializing user stats...");
       const { error: statsError } = await supabase
         .from("user_stats")
         .upsert({
-          user_id: authUser.id,
+          user_id: userId,
           total_xp: 0,
           current_level: 1,
           streak_count: 0,
@@ -371,11 +390,16 @@ export const [UserProvider, useUser] = createContextHook(() => {
 
       if (statsError) {
         console.error("Stats initialization error:", statsError);
+      } else {
+        console.log("Stats initialized successfully");
       }
 
       const updated = { ...user, hasCompletedOnboarding: true };
       setUser(updated);
 
+      console.log("Onboarding completed successfully! Navigating to home...");
+      console.log("========== COMPLETE ONBOARDING FINISHED ==========");
+      
       router.replace("/home");
       return { success: true };
     } catch (error) {
