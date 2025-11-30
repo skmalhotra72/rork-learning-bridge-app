@@ -22,7 +22,7 @@ import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 
 import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
-import { getLanguageSettings, LanguageSettings } from "@/services/multilingualPrompts";
+import { getLanguageSettings, LanguageSettings, buildMultilingualSystemPrompt, buildMultilingualPracticeProblemPrompt } from "@/services/multilingualPrompts";
 
 interface Message {
   id: string;
@@ -64,6 +64,7 @@ export default function AITutorScreen() {
   });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [languageSettings, setLanguageSettings] = useState<LanguageSettings | null>(null);
+  const [systemPrompt, setSystemPrompt] = useState<string>('');
 
   const { messages, sendMessage } = useRorkAgent({
     tools: {},
@@ -120,12 +121,77 @@ export default function AITutorScreen() {
     if (!authUser?.id) return;
     
     try {
-      console.log('Loading language settings...');
+      console.log('=== LOADING LANGUAGE SETTINGS ===');
       const settings = await getLanguageSettings(authUser.id);
       setLanguageSettings(settings);
-      console.log('Language settings loaded:', settings.preferred_tutoring_language);
+      console.log('✅ Language settings loaded');
+      console.log('Preferred language:', settings.preferred_tutoring_language);
+      console.log('Code mixing:', settings.allow_code_mixing);
+
+      await buildAndSetSystemPrompt(settings);
+      
+      // Update the initial greeting based on language
+      const greeting = getLocalizedGreeting(settings.preferred_tutoring_language);
+      setChatMessages([{
+        id: "1",
+        role: "assistant",
+        content: greeting,
+        timestamp: new Date(),
+      }]);
     } catch (error) {
-      console.error('Load language settings error:', error);
+      console.error('❌ Load language settings error:', error);
+    }
+  };
+
+  const getLocalizedGreeting = (language: string): string => {
+    const greetings: Record<string, string> = {
+      'Hindi': `नमस्ते! मैं Buddy ${subjectIcon} हूँ\n\nमैं आपका ${subjectName} tutor हूँ। मैं यहाँ आपकी help करने के लिए हूँ।\n\nआप मुझसे:
+📖 Concepts explain करवा सकते हैं
+✏️ Practice problems माँग सकते हैं
+🤔 Questions पूछ सकते हैं
+💡 Complex topics समझ सकते हैं
+📷 Images upload कर सकते हैं\n\nआज आप क्या सीखना चाहेंगे?`,
+      'Hinglish': `Hi! Main Buddy ${subjectIcon} hoon\n\nMain aapka ${subjectName} tutor hoon. Main yahaan help karne ke liye hoon.\n\nAap mujhse:
+📖 Concepts explain karwa sakte hain
+✏️ Practice problems maang sakte hain
+🤔 Questions pooch sakte hain
+💡 Complex topics samajh sakte hain
+📷 Images upload kar sakte hain\n\nAaj aap kya seekhna chahenge?`,
+      'English': `Hi! I'm Buddy ${subjectIcon}\n\nI'm your personal ${subjectName} tutor. I'm here to help you master the concepts you found challenging.\n\nYou can ask me to:
+📖 Explain concepts in simple terms
+✏️ Give you practice problems
+🤔 Answer your questions
+💡 Break down complex topics
+📷 Analyze uploaded images\n\nWhat would you like to learn about today?`
+    };
+    
+    return greetings[language] || greetings['English'];
+  };
+
+  const buildAndSetSystemPrompt = async (settings?: LanguageSettings) => {
+    if (!authUser?.id) return;
+
+    const lang = settings || languageSettings;
+    if (!lang) {
+      console.log('No language settings, using default');
+      return;
+    }
+
+    try {
+      console.log('=== BUILDING MULTILINGUAL SYSTEM PROMPT ===');
+      const prompt = await buildMultilingualSystemPrompt(
+        authUser.id,
+        subjectName,
+        'Interactive Learning',
+        undefined
+      );
+      
+      setSystemPrompt(prompt);
+      console.log('✅ System prompt built');
+      console.log('Language:', lang.preferred_tutoring_language);
+      console.log('Prompt length:', prompt.length, 'characters');
+    } catch (error) {
+      console.error('❌ Build system prompt error:', error);
     }
   };
 
@@ -232,6 +298,8 @@ export default function AITutorScreen() {
 
     console.log("=== SENDING MESSAGE TO AI ===");
     console.log("User message:", userMessage);
+    console.log("Language:", languageSettings?.preferred_tutoring_language);
+    console.log("Code mixing:", languageSettings?.allow_code_mixing);
     console.log("Selected image:", selectedImage ? 'Yes' : 'No');
 
     try {
@@ -240,14 +308,30 @@ export default function AITutorScreen() {
         return;
       }
 
-      console.log('Sending message to AI...');
-      console.log('User message:', userMessage);
+      // Build system prompt if not already built
+      let currentPrompt = systemPrompt;
+      if (!currentPrompt) {
+        console.log('⚠️ Warning: No system prompt set, building now...');
+        await buildAndSetSystemPrompt();
+        currentPrompt = systemPrompt || '';
+      }
+
+      if (currentPrompt) {
+        console.log('Using multilingual system prompt');
+        console.log('Prompt language:', languageSettings?.preferred_tutoring_language);
+        console.log('Code mixing:', languageSettings?.allow_code_mixing);
+      }
       
       if (selectedImage) {
         console.log('Note: Image selected but image analysis not yet implemented');
       }
       
-      await sendMessage(userMessage);
+      // Send message with system prompt context
+      const messageWithContext = currentPrompt 
+        ? `${currentPrompt}\n\nStudent's question: ${userMessage}`
+        : userMessage;
+      
+      await sendMessage(messageWithContext);
       console.log("✅ Message sent successfully");
 
       setSessionData(prev => ({
@@ -276,6 +360,9 @@ export default function AITutorScreen() {
   const handleExplainConcept = async () => {
     if (!authUser?.id) return;
 
+    console.log('=== EXPLAIN CONCEPT REQUESTED ===');
+    console.log('Language:', languageSettings?.preferred_tutoring_language);
+
     const message = "Can you explain the main concepts I need to focus on?";
     setInputText(message);
     
@@ -289,8 +376,26 @@ export default function AITutorScreen() {
   const handlePracticeProblem = async () => {
     if (!authUser?.id) return;
 
-    const message = "Can you give me a practice problem to solve?";
-    setInputText(message);
+    console.log('=== PRACTICE PROBLEM REQUESTED ===');
+    console.log('Language:', languageSettings?.preferred_tutoring_language);
+
+    try {
+      const problemPrompt = await buildMultilingualPracticeProblemPrompt(
+        authUser.id,
+        subjectName,
+        'Practice Problem'
+      );
+      
+      console.log('✅ Practice problem prompt built');
+      const message = "Can you give me a practice problem to solve? " + 
+                     `Use ${languageSettings?.preferred_tutoring_language} language and ` +
+                     "follow this format:\n" + problemPrompt;
+      setInputText(message);
+    } catch (error) {
+      console.error('❌ Build practice prompt error:', error);
+      const message = "Can you give me a practice problem to solve?";
+      setInputText(message);
+    }
     
     setSessionData(prev => ({
       ...prev,
