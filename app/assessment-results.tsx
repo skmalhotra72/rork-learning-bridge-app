@@ -124,20 +124,65 @@ export default function AssessmentResultsScreen() {
 
   const analyzeResults = useCallback(async () => {
     try {
-      const questions: Question[] = JSON.parse(questionsData);
-      const answers: Record<string, Answer> = JSON.parse(answersData);
+      console.log("Starting analysis...");
+      console.log("Questions data:", questionsData?.substring(0, 100) || "N/A");
+      console.log("Answers data:", answersData?.substring(0, 100) || "N/A");
+
+      // Validate input data
+      if (!questionsData || !answersData) {
+        console.error("Missing data - questions or answers not provided");
+        Alert.alert("Error", "Assessment data is missing. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      let questions: Question[];
+      let answers: Record<string, Answer>;
+
+      try {
+        questions = JSON.parse(questionsData);
+        answers = JSON.parse(answersData);
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        Alert.alert("Error", "Failed to load assessment data. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Validate parsed data
+      if (!questions || !Array.isArray(questions) || questions.length === 0) {
+        console.error("Invalid questions data");
+        Alert.alert("Error", "No questions found in assessment data.");
+        setLoading(false);
+        return;
+      }
+
+      if (!answers || typeof answers !== "object" || Object.keys(answers).length === 0) {
+        console.error("Invalid answers data");
+        Alert.alert("Error", "No answers recorded. Please try again.");
+        setLoading(false);
+        return;
+      }
 
       console.log("Analyzing results for:", subjectName);
       console.log("Total questions:", questions.length);
+      console.log("Total answers:", Object.keys(answers).length);
 
       const totalQuestions = questions.length;
-      const correctAnswers = Object.values(answers).filter(
-        (a) => a.isCorrect
-      ).length;
-      const skippedQuestions = Object.values(answers).filter(
-        (a) => a.skipped
-      ).length;
-      const score = Math.round((correctAnswers / totalQuestions) * 100);
+      let correctAnswers = 0;
+      let skippedQuestions = 0;
+
+      // Safely count correct and skipped answers
+      Object.values(answers).forEach((answer) => {
+        if (answer && answer.isCorrect === true) {
+          correctAnswers++;
+        }
+        if (answer && answer.skipped === true) {
+          skippedQuestions++;
+        }
+      });
+
+      const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
 
       console.log("Score:", score, "%");
       console.log("Correct:", correctAnswers);
@@ -149,53 +194,63 @@ export default function AssessmentResultsScreen() {
           total: number;
           correct: number;
           skipped: number;
-          avgTime: number;
+          totalTime: number;
         }
       > = {};
 
+      // Safely process each question
       questions.forEach((q) => {
+        if (!q || !q.id) {
+          console.warn("Skipping invalid question:", q);
+          return;
+        }
+
         const answer = answers[q.id];
-        const concept = q.concept || "General";
+        if (!answer) {
+          console.warn("No answer found for question:", q.id);
+          return;
+        }
+
+        const concept = q.concept || "General Concepts";
 
         if (!conceptPerformance[concept]) {
           conceptPerformance[concept] = {
             total: 0,
             correct: 0,
             skipped: 0,
-            avgTime: 0,
+            totalTime: 0,
           };
         }
 
         conceptPerformance[concept].total++;
         if (answer.isCorrect) conceptPerformance[concept].correct++;
         if (answer.skipped) conceptPerformance[concept].skipped++;
-        conceptPerformance[concept].avgTime += answer.timeSpent;
+        conceptPerformance[concept].totalTime += answer.timeSpent || 0;
       });
 
-      Object.keys(conceptPerformance).forEach((concept) => {
-        const perf = conceptPerformance[concept];
-        perf.avgTime = Math.round(perf.avgTime / perf.total);
-      });
+      console.log("Concept performance:", Object.keys(conceptPerformance).length, "concepts");
 
       const strongConcepts: ConceptPerformance[] = [];
       const needsReview: ConceptPerformance[] = [];
       const criticalGaps: ConceptPerformance[] = [];
 
       Object.entries(conceptPerformance).forEach(([concept, perf]) => {
-        const accuracy = Math.round((perf.correct / perf.total) * 100);
+        const avgTime = perf.total > 0 ? Math.round(perf.totalTime / perf.total) : 0;
+        const accuracy = perf.total > 0 ? Math.round((perf.correct / perf.total) * 100) : 0;
+        
         const category: ConceptPerformance = {
           name: concept,
           accuracy,
           total: perf.total,
           correct: perf.correct,
-          avgTime: perf.avgTime,
+          avgTime,
           priority: "medium",
         };
 
-        if (accuracy >= 80) {
+        if (accuracy >= 75) {
           category.priority = "low";
           strongConcepts.push(category);
-        } else if (accuracy >= 50) {
+        } else if (accuracy >= 40) {
           category.priority = "medium";
           needsReview.push(category);
         } else {
@@ -203,6 +258,8 @@ export default function AssessmentResultsScreen() {
           criticalGaps.push(category);
         }
       });
+
+      console.log("Strong:", strongConcepts.length, "Review:", needsReview.length, "Gaps:", criticalGaps.length);
 
       const learningPath: ConceptPerformance[] = [
         ...criticalGaps,
@@ -221,12 +278,21 @@ export default function AssessmentResultsScreen() {
         learningPath,
       };
 
+      console.log("Analysis complete:", analysis);
+
       setGapAnalysis(analysis);
       await saveAssessment(analysis, questions, answers);
       setLoading(false);
     } catch (error) {
       console.error("Analysis error:", error);
-      Alert.alert("Error", "Failed to analyze results");
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      Alert.alert(
+        "Analysis Error",
+        "Failed to analyze your results. Please try taking the assessment again."
+      );
       setLoading(false);
     }
   }, [questionsData, answersData, subjectName, saveAssessment]);
@@ -249,14 +315,25 @@ export default function AssessmentResultsScreen() {
         />
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Analyzing your responses...</Text>
+        <Text style={styles.loadingSubtext}>This will just take a moment</Text>
       </View>
     );
   }
 
   if (!gapAnalysis) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Failed to load results</Text>
+      <View style={styles.errorContainer}>
+        <LinearGradient
+          colors={["#EEF2FF", Colors.background]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <Text style={styles.errorText}>Unable to load results</Text>
+        <Pressable
+          style={styles.retryButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.retryButtonText}>Go Back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -402,12 +479,37 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: "600" as const,
+    color: Colors.text,
+  },
+  loadingSubtext: {
+    marginTop: 8,
+    fontSize: 14,
     color: Colors.textSecondary,
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: "600" as const,
     color: Colors.error,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600" as const,
   },
   scrollContent: {
     flexGrow: 1,
