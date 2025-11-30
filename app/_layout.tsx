@@ -28,6 +28,8 @@ function RootLayoutNav() {
       <Stack.Screen name="assessment-quiz" options={{ headerShown: false }} />
       <Stack.Screen name="assessment-results" options={{ headerShown: false }} />
       <Stack.Screen name="ai-tutor" options={{ headerShown: false }} />
+      <Stack.Screen name="badges" options={{ headerShown: false }} />
+      <Stack.Screen name="parent-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
