@@ -1,393 +1,338 @@
-# 🦉 Advanced AI Tutoring System - Implementation Guide
+# AI Tutor Comprehensive Learning History - Database Setup
 
-## 📋 Overview
+## Overview
+This document provides the SQL commands needed to set up comprehensive learning history tracking in your Supabase database.
 
-This implementation adds an advanced AI tutoring system with:
+## Database Tables
 
-1. **CBSE Curriculum Knowledge Base** - Complete curriculum mapping for grades 6-12
-2. **Learning History Tracking** - Persistent tracking of student progress and mistakes
-3. **Context-Aware AI** - AI that remembers what students have learned
-4. **Image Upload** - Students can upload textbook/homework images
-5. **Session Tracking** - Automatic saving of learning sessions
-
----
-
-## 🗄️ Database Setup
-
-### Step 1: Create Learning History Table
-
-Run this SQL in your Supabase SQL Editor:
+### 1. Learning History Table (Enhanced)
+Tracks detailed session information including all interactions with the AI tutor.
 
 ```sql
--- Create learning_history table
+-- Drop existing table if you want to start fresh (OPTIONAL - WARNING: Deletes all data!)
+-- DROP TABLE IF EXISTS public.learning_history CASCADE;
+
+-- Create enhanced learning_history table
 CREATE TABLE IF NOT EXISTS public.learning_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   subject TEXT NOT NULL,
   chapter TEXT,
   concept TEXT NOT NULL,
+  session_type TEXT DEFAULT 'general' CHECK (session_type IN ('explanation', 'practice', 'assessment', 'general')),
   conversation_summary TEXT,
+  key_points_learned JSONB DEFAULT '[]'::jsonb,
   concepts_explained JSONB DEFAULT '[]'::jsonb,
+  examples_used JSONB DEFAULT '[]'::jsonb,
+  problems_attempted INTEGER DEFAULT 0,
   problems_solved INTEGER DEFAULT 0,
   mistakes_made JSONB DEFAULT '[]'::jsonb,
   understanding_level INTEGER CHECK (understanding_level >= 1 AND understanding_level <= 10),
-  session_duration INTEGER,
+  confidence_before INTEGER CHECK (confidence_before >= 1 AND confidence_before <= 10),
+  confidence_after INTEGER CHECK (confidence_after >= 1 AND confidence_after <= 10),
+  questions_asked INTEGER DEFAULT 0,
+  ai_responses_count INTEGER DEFAULT 0,
+  session_duration INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Disable RLS for now (enable later with proper policies)
+-- Disable RLS for learning_history (for testing - enable in production!)
 ALTER TABLE public.learning_history DISABLE ROW LEVEL SECURITY;
 
--- Create indexes for better query performance
+-- Create indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_learning_history_user_subject 
 ON public.learning_history(user_id, subject);
 
 CREATE INDEX IF NOT EXISTS idx_learning_history_concept 
 ON public.learning_history(user_id, concept);
 
-CREATE INDEX IF NOT EXISTS idx_learning_history_created 
+CREATE INDEX IF NOT EXISTS idx_learning_history_created_at 
 ON public.learning_history(created_at DESC);
 ```
 
-### Step 2: Verify Table Creation
-
-Run this query to verify:
+### 2. Concept Mastery Table
+Tracks how well students have mastered individual concepts.
 
 ```sql
-SELECT * FROM public.learning_history LIMIT 5;
+-- Create concept_mastery table
+CREATE TABLE IF NOT EXISTS public.concept_mastery (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  subject TEXT NOT NULL,
+  chapter TEXT,
+  concept TEXT NOT NULL,
+  mastery_level INTEGER DEFAULT 0 CHECK (mastery_level >= 0 AND mastery_level <= 100),
+  attempts_count INTEGER DEFAULT 0,
+  successful_attempts INTEGER DEFAULT 0,
+  last_practiced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  status TEXT DEFAULT 'learning' CHECK (status IN ('learning', 'mastered', 'needs_revision')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, subject, concept)
+);
+
+-- Disable RLS for concept_mastery (for testing - enable in production!)
+ALTER TABLE public.concept_mastery DISABLE ROW LEVEL SECURITY;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_concept_mastery_user_subject 
+ON public.concept_mastery(user_id, subject);
+
+CREATE INDEX IF NOT EXISTS idx_concept_mastery_status 
+ON public.concept_mastery(user_id, status);
 ```
 
----
+### 3. Learning Insights Table
+Stores AI-generated insights about student's learning patterns.
 
-## 📁 Files Created
+```sql
+-- Create learning_insights table
+CREATE TABLE IF NOT EXISTS public.learning_insights (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  subject TEXT NOT NULL,
+  insight_type TEXT NOT NULL CHECK (insight_type IN ('strength', 'weakness', 'recommendation', 'achievement')),
+  insight_text TEXT NOT NULL,
+  related_concepts JSONB DEFAULT '[]'::jsonb,
+  evidence JSONB DEFAULT '{}'::jsonb,
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'resolved', 'dismissed')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-### 1. **data/cbseCurriculum.ts**
-Complete CBSE curriculum database covering:
-- Mathematics (Classes 6-12)
-- Physics (Classes 9-12)
-- Chemistry (Classes 9-10)
-- Biology (Classes 9-10)
+-- Disable RLS for learning_insights (for testing - enable in production!)
+ALTER TABLE public.learning_insights DISABLE ROW LEVEL SECURITY;
 
-Each chapter includes:
-- Chapter name and number
-- Key concepts
-- Prerequisites
-- Difficulty level
-- Common mistakes students make
-- Real-world applications
-- Exam importance
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_learning_insights_user_subject 
+ON public.learning_insights(user_id, subject);
 
-### 2. **services/learningHistory.ts**
-Manages learning history tracking:
-- `saveLearningSession()` - Save completed learning sessions
-- `getLearningHistory()` - Retrieve past learning records
-- `getStudentContext()` - Build comprehensive student context
+CREATE INDEX IF NOT EXISTS idx_learning_insights_priority 
+ON public.learning_insights(priority DESC);
 
-### 3. **services/aiPrompts.ts**
-Creates intelligent, context-aware prompts:
-- `buildSystemPrompt()` - Creates personalized system prompts for AI
-- `buildPracticeProblemPrompt()` - Generates practice problem instructions
-
-### 4. **app/ai-tutor.tsx** (Enhanced)
-Enhanced AI tutor screen with:
-- Learning history integration
-- Image upload functionality
-- Session tracking
-- Context-aware messaging
-
----
-
-## 🎯 How It Works
-
-### 1. **Student Profile Building**
-
-When a student starts learning, the system:
-```
-1. Loads their subject progress from database
-2. Retrieves their learning history
-3. Identifies common mistakes from past sessions
-4. Calculates average understanding level
-5. Notes recently studied topics
+CREATE INDEX IF NOT EXISTS idx_learning_insights_status 
+ON public.learning_insights(status);
 ```
 
-### 2. **Context-Aware AI Responses**
+### 4. Student Learning Context View (Optional but Recommended)
+Creates a view that aggregates learning data for easy querying.
 
-Before each AI response, the system builds a comprehensive prompt with:
-
-```javascript
-{
-  student_grade: 10,
-  subject: "Mathematics",
-  current_chapter: "Quadratic Equations",
-  confidence_level: 6/10,
-  mastery_percentage: 45%,
-  recent_topics: ["Polynomials", "Linear Equations"],
-  common_mistakes: ["Sign errors in formula", "Discriminant confusion"],
-  problems_solved: 12,
-  average_understanding: 7/10
-}
+```sql
+-- Create a view for comprehensive student learning context
+CREATE OR REPLACE VIEW student_learning_context AS
+SELECT 
+  lh.user_id,
+  lh.subject,
+  COUNT(DISTINCT lh.id) as sessions_count,
+  SUM(lh.session_duration) as total_time_spent,
+  ROUND(AVG(lh.understanding_level)) as avg_understanding,
+  SUM(lh.problems_solved) as total_problems_solved,
+  sp.mastery_percentage,
+  sp.confidence_level,
+  sp.current_chapter,
+  sp.stuck_points,
+  ARRAY_AGG(DISTINCT lh.concept ORDER BY lh.created_at DESC) FILTER (WHERE lh.concept IS NOT NULL) as recent_concepts,
+  (
+    SELECT json_agg(cm.*)
+    FROM concept_mastery cm
+    WHERE cm.user_id = lh.user_id 
+    AND cm.subject = lh.subject 
+    AND cm.status = 'mastered'
+    LIMIT 10
+  ) as mastered_concepts,
+  (
+    SELECT json_agg(cm.*)
+    FROM concept_mastery cm
+    WHERE cm.user_id = lh.user_id 
+    AND cm.subject = lh.subject 
+    AND cm.status = 'needs_revision'
+    LIMIT 5
+  ) as needs_revision,
+  (
+    SELECT json_agg(li.*)
+    FROM learning_insights li
+    WHERE li.user_id = lh.user_id 
+    AND li.subject = lh.subject 
+    AND li.status = 'active'
+    ORDER BY li.priority DESC, li.created_at DESC
+    LIMIT 5
+  ) as active_insights
+FROM learning_history lh
+LEFT JOIN subject_progress sp ON lh.user_id = sp.user_id AND lh.subject = sp.subject
+GROUP BY lh.user_id, lh.subject, sp.mastery_percentage, sp.confidence_level, sp.current_chapter, sp.stuck_points;
 ```
 
-The AI uses this to:
-- Adjust explanation complexity
-- Reference previously learned concepts
-- Avoid repeating past mistakes
-- Build on existing knowledge
+## Setup Instructions
 
-### 3. **Learning Session Tracking**
+### Step 1: Run SQL in Supabase
+1. Go to your Supabase project: https://supabase.com/dashboard
+2. Click on "SQL Editor" in the left sidebar
+3. Create a new query
+4. Copy and paste **ALL** the SQL commands above (all 4 sections)
+5. Click "Run" to execute
 
-During each tutoring session:
-```javascript
-{
-  concepts_explained: ["Quadratic Formula", "Discriminant"],
-  problems_solved: 3,
-  mistakes: ["Forgot to check discriminant sign"],
-  session_duration: 1200 // seconds
-}
+### Step 2: Verify Tables Were Created
+1. Go to "Table Editor" in Supabase
+2. You should see these new tables:
+   - `learning_history`
+   - `concept_mastery`
+   - `learning_insights`
+3. You should see the view in "SQL Editor" → "Views"
+
+### Step 3: Test the System
+1. Open your app
+2. Navigate to a subject
+3. Complete an assessment (if status is "getting_to_know_you")
+4. Start the AI Tutor ("Start Learning" button)
+5. Have a conversation with Buddy - ask questions, request explanations
+6. Exit the AI Tutor screen
+7. Check Supabase:
+   - Go to `learning_history` table - you should see a new row with your session data
+   - Check `concept_mastery` if you solved problems
+   - Look at the console logs for detailed tracking info
+
+## What Gets Tracked
+
+### In learning_history:
+- ✅ Session duration (in seconds)
+- ✅ Concepts explained
+- ✅ Key points learned
+- ✅ Examples used
+- ✅ Problems attempted vs solved
+- ✅ Questions asked
+- ✅ AI responses count
+- ✅ Mistakes made
+- ✅ Understanding level (1-10)
+- ✅ Confidence before/after session
+
+### In concept_mastery:
+- ✅ Mastery level per concept (0-100%)
+- ✅ Number of attempts
+- ✅ Successful attempts
+- ✅ Status (learning/mastered/needs_revision)
+- ✅ Last practiced timestamp
+
+### In learning_insights:
+- ✅ Strengths identified
+- ✅ Weaknesses found
+- ✅ Recommendations for learning
+- ✅ Achievement milestones
+- ✅ Evidence-based insights
+
+## Features Implemented
+
+### 1. Comprehensive Session Tracking
+- Every AI tutor session is saved with detailed metrics
+- Only sessions longer than 10 seconds are saved
+- Automatic calculation of understanding and confidence improvements
+
+### 2. Context-Aware AI
+- AI system prompt includes full learning history
+- References past topics, mistakes, and mastery
+- Personalized teaching based on student progress
+
+### 3. Concept Mastery Tracking
+- Tracks individual concept understanding
+- Automatically updates mastery levels
+- Identifies which concepts need revision
+
+### 4. Learning Insights (Foundation)
+- Database structure ready for AI-generated insights
+- Can identify patterns in learning behavior
+- Priority-based insight system
+
+## Console Logs to Watch
+
+When using the AI Tutor, watch for these logs:
+
+```
+=== BUILDING STUDENT CONTEXT ===
+✅ Built student context
+- Total sessions: X
+- Problems solved: Y
+- Time spent: Z minutes
+
+=== SAVING SESSION ON EXIT ===
+Duration: X seconds
+Concepts explained: Y
+Questions asked: Z
+✅ Learning session saved successfully
+✅ Concept mastery updated
 ```
 
-When the student leaves, this is automatically saved to the database.
+## Troubleshooting
 
-### 4. **Image Upload Flow**
+### If tables don't appear:
+1. Check for SQL errors in the query output
+2. Make sure you're in the correct Supabase project
+3. Verify you have admin permissions
 
-Students can upload images:
-1. Click "📷 Image" button
-2. Choose camera or gallery
-3. Select intent (Explain / Solve / Check work)
-4. AI acknowledges image and asks for description
+### If data isn't saving:
+1. Check the console logs for error messages
+2. Verify RLS (Row Level Security) is disabled for testing
+3. Check that `profiles` table exists and user_id is valid
+4. Look for foreign key constraint errors
 
-**Note:** Full image analysis requires vision-capable AI model (future enhancement).
+### If AI context isn't working:
+1. Verify you have at least one learning session saved
+2. Check that `getStudentContext` returns data in logs
+3. Ensure Supabase connection is active
 
----
+## Next Steps
 
-## 🚀 Features Implemented
+After setting up the database:
 
-### ✅ Curriculum Knowledge
-- Complete CBSE syllabus for grades 6-12
-- Subject-wise chapter breakdown
-- Concept prerequisites mapping
-- Common mistakes database
-- Real-world applications
+1. ✅ Test AI Tutor thoroughly
+2. ✅ Have multiple sessions to build history
+3. ✅ Solve practice problems to track mastery
+4. ✅ Check that data appears in Supabase tables
+5. 🔄 Enable RLS policies in production (see Supabase docs)
+6. 🔄 Add dashboard UI to display learning insights
+7. 🔄 Implement automatic insight generation
+8. 🔄 Add progress tracking visualizations
 
-### ✅ Learning History
-- Persistent session storage
-- Concept tracking
-- Problem count tracking
-- Mistake recording
-- Understanding level assessment
+## Production Considerations
 
-### ✅ Context-Aware AI
-- Student profile integration
-- Learning history consideration
-- Adaptive explanations
-- Mistake prevention
-- Progressive difficulty
+**IMPORTANT**: Before deploying to production:
 
-### ✅ Image Upload
-- Camera capture
-- Gallery selection
-- Intent selection (Explain/Solve/Check)
-- Image context acknowledgment
+1. **Enable Row Level Security (RLS)**:
+```sql
+ALTER TABLE public.learning_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.concept_mastery ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.learning_insights ENABLE ROW LEVEL SECURITY;
 
-### ✅ Session Management
-- Automatic session start
-- Concept tracking during session
-- Auto-save on exit
-- Duration tracking
+-- Create RLS policies
+CREATE POLICY "Users can view own learning history"
+ON public.learning_history FOR SELECT
+USING (auth.uid() = user_id);
 
----
+CREATE POLICY "Users can insert own learning history"
+ON public.learning_history FOR INSERT
+WITH CHECK (auth.uid() = user_id);
 
-## 📊 Example Student Context
-
-```json
-{
-  "subject": "Mathematics",
-  "grade": 10,
-  "currentChapter": "Quadratic Equations",
-  "confidenceLevel": 6,
-  "stuckPoints": "Struggling with word problems",
-  "masteryPercentage": 45,
-  "recentTopics": [
-    "Quadratic Formula",
-    "Discriminant",
-    "Nature of Roots"
-  ],
-  "commonMistakes": [
-    "Sign errors in formula",
-    "Forgetting discriminant check",
-    "Division errors"
-  ],
-  "problemsSolved": 12,
-  "averageUnderstanding": 7
-}
+-- Repeat for other tables
 ```
 
----
+2. **Set up proper indexes** for your query patterns
+3. **Monitor database performance**
+4. **Consider data retention policies** (archive old sessions)
+5. **Implement backup strategies**
 
-## 🎓 Example AI System Prompt
-
-```text
-You are Buddy 🦉, an expert CBSE tutor specializing in Mathematics for Class 10 students.
-
-STUDENT PROFILE:
-- Class: 10
-- Subject: Mathematics
-- Current Chapter: Quadratic Equations
-- Overall Confidence: 6/10
-- Mastery Level: 45%
-- Known struggles: Struggling with word problems
-
-LEARNING HISTORY:
-- Recent topics studied: Quadratic Formula, Discriminant, Nature of Roots
-- Problems solved so far: 12
-- Common mistakes: Sign errors in formula, Forgetting discriminant check
-- Average understanding level: 7/10
-
-CURRENT CONCEPT: Quadratic Formula
-Chapter: Quadratic Equations
-Common mistakes students make: Discriminant interpretation, Sign errors in formula
-
-YOUR TEACHING APPROACH:
-1. Simple Language: Use language appropriate for Class 10
-2. Indian Context: Use Indian examples (₹ rupees, cricket, daily life)
-3. Step-by-Step: Break complex concepts into small steps
-4. Check Understanding: Ask questions to verify understanding
-5. Encourage: Always be positive and patient
-6. Build on History: Reference what student has learned before
-
-WATCH OUT: This student has made these mistakes before:
-Sign errors in formula, Forgetting discriminant check
-Help them avoid repeating these errors.
-
-Student's question: "Can you explain when to use the quadratic formula?"
-```
-
----
-
-## 🧪 Testing Checklist
-
-### Database
-- [ ] Run SQL to create learning_history table
-- [ ] Verify table exists in Supabase
-- [ ] Check indexes were created
-
-### AI Tutor
-- [ ] Complete assessment to reach "lets_bridge_gaps" status
-- [ ] Click "Start Learning" on subject card
-- [ ] Verify AI chat loads with welcome message
-- [ ] Ask a question and get AI response
-- [ ] Click "Explain" button
-- [ ] Click "Practice" button
-- [ ] Click "Image" button and test upload
-
-### Learning History
-- [ ] Have a learning session (ask questions)
-- [ ] Exit the AI tutor screen
-- [ ] Check Supabase learning_history table for new record
-- [ ] Return to AI tutor
-- [ ] Verify AI remembers previous context
-
-### Context Awareness
-- [ ] Have multiple learning sessions
-- [ ] Check if AI references past topics
-- [ ] See if AI adapts based on history
-
----
-
-## 📈 Future Enhancements
-
-### Phase 2: Full Image Analysis
-- Integrate GPT-4 Vision or Claude 3 with vision
-- Analyze textbook diagrams
-- Read handwritten work
-- Provide step-by-step corrections
-
-### Phase 3: Advanced Analytics
-- Learning pace tracking
-- Concept mastery graphs
-- Difficulty progression
-- Study time recommendations
-
-### Phase 4: Personalized Learning Paths
-- Auto-generate curriculum based on gaps
-- Adaptive problem difficulty
-- Spaced repetition scheduling
-- Exam preparation plans
-
----
-
-## 🔧 Troubleshooting
-
-### Issue: AI not responding
-**Check:**
-1. Console logs for errors
-2. Rork AI toolkit is properly initialized
-3. User is authenticated (authUser exists)
-4. System prompt builds without errors
-
-### Issue: Learning history not saving
-**Check:**
-1. learning_history table exists in Supabase
-2. RLS is disabled (or proper policies set)
-3. authUser.id is available
-4. Session has concepts_explained or problems_solved > 0
-
-### Issue: Image upload not working
-**Check:**
-1. Camera permissions granted
-2. expo-image-picker installed
-3. Gallery access permissions (on device)
-4. Image picker result handling
-
----
-
-## 💡 Key Implementation Notes
-
-### 1. **Context Building is Async**
-Always await `buildSystemPrompt()` and `getStudentContext()`:
-```javascript
-const systemPrompt = await buildSystemPrompt(userId, subject, concept);
-```
-
-### 2. **Session Saves on Unmount**
-The useEffect cleanup function saves the session automatically when leaving the screen.
-
-### 3. **Learning History Queries**
-Limited to last 10 records for performance. Adjust limit in `getLearningHistory()` if needed.
-
-### 4. **Curriculum Expansion**
-Add more chapters to `cbseCurriculum.ts` as needed. Current implementation has key chapters but can be expanded.
-
-### 5. **Image Analysis Placeholder**
-Current implementation acknowledges images but doesn't analyze them. Full analysis requires vision-capable AI model integration.
-
----
-
-## 🎉 Success Criteria
-
-Your implementation is working correctly when:
-
-1. ✅ learning_history table exists in Supabase
-2. ✅ AI tutor screen loads and displays welcome message
-3. ✅ Students can ask questions and get responses
-4. ✅ Quick action buttons work (Explain, Practice, Image)
-5. ✅ Image upload shows camera/gallery options
-6. ✅ Learning sessions save to database on exit
-7. ✅ AI prompts include student context
-8. ✅ Multiple sessions build cumulative history
-
----
-
-## 📞 Need Help?
+## Support
 
 If you encounter issues:
-
 1. Check console logs for detailed error messages
-2. Verify database table structure matches SQL above
-3. Ensure Supabase connection is working
-4. Test with simple queries first
-5. Check that user is properly authenticated
+2. Verify all SQL ran successfully
+3. Ensure your app is connected to the correct Supabase project
+4. Check that authentication is working properly
 
----
+## Summary
 
-**Built with ❤️ for Learning Bridge - Empowering CBSE students with AI**
+You now have a comprehensive learning history system that:
+- Tracks every interaction with the AI tutor
+- Builds cumulative student context
+- Enables personalized AI teaching
+- Monitors concept mastery
+- Prepares for learning insights generation
+
+The AI tutor will now remember what students have learned, their common mistakes, and their progress over time!

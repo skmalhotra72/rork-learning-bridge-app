@@ -22,7 +22,7 @@ import { useRorkAgent } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { buildSystemPrompt, buildPracticeProblemPrompt } from "@/services/aiPrompts";
-import { saveLearningSession } from "@/services/learningHistory";
+import { saveLearningSession, getStudentContext, updateConceptMastery, buildAIContextString } from "@/services/learningHistory";
 
 interface Message {
   id: string;
@@ -52,8 +52,14 @@ export default function AITutorScreen() {
   ]);
   const [sessionData, setSessionData] = useState({
     conceptsExplained: [] as string[],
+    keyPoints: [] as string[],
+    examples: [] as string[],
+    problemsAttempted: 0,
     problemsSolved: 0,
     mistakes: [] as string[],
+    questionsAsked: 0,
+    aiResponses: 0,
+    confidenceBefore: 5,
     startTime: Date.now()
   });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -112,25 +118,89 @@ export default function AITutorScreen() {
 
   const saveSession = async () => {
     if (!authUser?.id) return;
-    if (sessionData.conceptsExplained.length === 0 && sessionData.problemsSolved === 0) return;
+    
+    const duration = Math.floor((Date.now() - sessionData.startTime) / 1000);
+    
+    if (duration < 10) {
+      console.log('Session too short (<10s), not saving');
+      return;
+    }
+    
+    if (sessionData.conceptsExplained.length === 0 && sessionData.problemsSolved === 0 && sessionData.questionsAsked === 0) {
+      console.log('No meaningful interaction, not saving');
+      return;
+    }
     
     try {
-      const duration = Math.floor((Date.now() - sessionData.startTime) / 1000);
+      console.log('=== SAVING SESSION ON EXIT ===');
+      console.log('Duration:', duration, 'seconds');
+      console.log('Concepts explained:', sessionData.conceptsExplained.length);
+      console.log('Questions asked:', sessionData.questionsAsked);
+      console.log('Problems solved:', sessionData.problemsSolved);
       
-      await saveLearningSession({
+      const sessionParts = [];
+      if (sessionData.conceptsExplained.length > 0) {
+        sessionParts.push(`Explored ${sessionData.conceptsExplained.length} concepts`);
+      }
+      if (sessionData.problemsSolved > 0) {
+        sessionParts.push(`Solved ${sessionData.problemsSolved} problems`);
+      }
+      if (sessionData.questionsAsked > 0) {
+        sessionParts.push(`Asked ${sessionData.questionsAsked} questions`);
+      }
+      
+      const summary = sessionParts.length > 0 
+        ? sessionParts.join('. ') 
+        : 'Learning session with AI tutor';
+      
+      const understandingScore = Math.min(10, 5 + Math.floor(sessionData.problemsSolved / 2) + Math.floor(sessionData.questionsAsked / 3));
+      const confidenceAfter = Math.min(10, sessionData.confidenceBefore + Math.floor(sessionData.problemsSolved / 2));
+      
+      const result = await saveLearningSession({
         user_id: authUser.id,
         subject: subjectName,
-        chapter: 'Current Chapter',
-        concept: 'General Learning',
-        conversation_summary: `Learned about ${subjectName}. ${sessionData.conceptsExplained.length} concepts explained.`,
+        chapter: 'AI Tutor Session',
+        concept: 'Interactive Learning',
+        session_type: 'explanation',
+        conversation_summary: summary,
+        key_points_learned: sessionData.keyPoints,
         concepts_explained: sessionData.conceptsExplained,
+        examples_used: sessionData.examples,
+        problems_attempted: sessionData.problemsAttempted,
         problems_solved: sessionData.problemsSolved,
         mistakes_made: sessionData.mistakes,
-        understanding_level: 7,
+        understanding_level: understandingScore,
+        confidence_before: sessionData.confidenceBefore,
+        confidence_after: confidenceAfter,
+        questions_asked: sessionData.questionsAsked,
+        ai_responses_count: sessionData.aiResponses,
         session_duration: duration
       });
+      
+      if (result.success) {
+        console.log('✅ Learning session saved successfully');
+        
+        if (sessionData.problemsSolved > 0) {
+          const masteryLevel = Math.min(100, sessionData.problemsSolved * 20);
+          await updateConceptMastery(
+            authUser.id,
+            subjectName,
+            'Interactive Learning',
+            {
+              chapter: 'AI Tutor Session',
+              masteryLevel: masteryLevel,
+              attempts: sessionData.problemsAttempted,
+              successfulAttempts: sessionData.problemsSolved,
+              status: masteryLevel >= 80 ? 'mastered' : 'learning'
+            }
+          );
+          console.log('✅ Concept mastery updated');
+        }
+      } else {
+        console.error('❌ Failed to save session:', result.error);
+      }
     } catch (error) {
-      console.error('Session save error:', error);
+      console.error('❌ Session save error:', error);
     }
   };
 
@@ -157,9 +227,12 @@ export default function AITutorScreen() {
         userMessage
       );
 
-      console.log('System prompt built');
+      console.log('System prompt built, length:', systemPrompt.length);
 
-      let messageToSend = systemPrompt + "\n\nStudent's question: " + userMessage;
+      const contextString = buildAIContextString(await getStudentContext(authUser.id, subjectName));
+      console.log('Context string built');
+
+      let messageToSend = systemPrompt + "\n\n" + contextString + "\n\nStudent's question: " + userMessage;
 
       if (selectedImage) {
         messageToSend += "\n\n[Student has uploaded an image. Acknowledge it and ask them to describe what they see or need help with.]";
@@ -170,7 +243,9 @@ export default function AITutorScreen() {
 
       setSessionData(prev => ({
         ...prev,
-        conceptsExplained: [...prev.conceptsExplained, 'Current Topic']
+        conceptsExplained: [...prev.conceptsExplained, 'Current Topic'],
+        questionsAsked: prev.questionsAsked + 1,
+        aiResponses: prev.aiResponses + 1
       }));
 
       setSelectedImage(null);
@@ -196,7 +271,8 @@ export default function AITutorScreen() {
     
     setSessionData(prev => ({
       ...prev,
-      conceptsExplained: [...prev.conceptsExplained, 'Main Concepts']
+      conceptsExplained: [...prev.conceptsExplained, 'Main Concepts'],
+      keyPoints: [...prev.keyPoints, 'Concept explanation requested']
     }));
   };
 
@@ -208,7 +284,8 @@ export default function AITutorScreen() {
     
     setSessionData(prev => ({
       ...prev,
-      problemsSolved: prev.problemsSolved + 1
+      problemsAttempted: prev.problemsAttempted + 1,
+      keyPoints: [...prev.keyPoints, 'Practice problem requested']
     }));
   };
 
