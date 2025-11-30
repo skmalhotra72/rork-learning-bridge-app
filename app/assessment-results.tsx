@@ -164,15 +164,47 @@ export default function AssessmentResultsScreen() {
         console.error("Error details:", JSON.stringify(updateError));
         Alert.alert("Save Error", `Failed to save: ${updateError.message}`);
       } else {
-        console.log("✅ Assessment saved successfully!");
+        console.log("✅ Subject status updated successfully!");
         console.log("Updated data:", updateData);
         
         if (!updateData || updateData.length === 0) {
           console.warn("Update succeeded but no rows returned");
         }
-        
-        await refreshData();
       }
+
+      // After updating subject_progress, also save full assessment record
+      console.log("Saving full assessment record...");
+      const { error: assessmentError } = await supabase
+        .from("assessments")
+        .insert({
+          user_id: userId,
+          subject_id: subjectId,
+          subject_name: subjectName,
+          score: analysis.score,
+          total_questions: analysis.totalQuestions,
+          correct_answers: analysis.correctAnswers,
+          skipped_questions: analysis.skippedQuestions,
+          assessment_data: {
+            questions: questions,
+            answers: answers,
+            gap_analysis: {
+              strongConcepts: analysis.strongConcepts,
+              needsReview: analysis.needsReview,
+              criticalGaps: analysis.criticalGaps,
+              learningPath: analysis.learningPath,
+            },
+          },
+          completed_at: new Date().toISOString(),
+        });
+
+      if (assessmentError) {
+        console.error("❌ Assessment record save error:", assessmentError);
+        console.error("Assessment error details:", JSON.stringify(assessmentError));
+      } else {
+        console.log("✅ Full assessment record saved successfully!");
+      }
+
+      await refreshData();
 
     } catch (error) {
       console.error("❌ Save assessment exception:", error);
