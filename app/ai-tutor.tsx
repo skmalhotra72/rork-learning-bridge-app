@@ -6,7 +6,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -21,7 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRorkAgent } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
-import { buildSystemPrompt, buildPracticeProblemPrompt } from "@/services/aiPrompts";
+
 import { saveLearningSession, getStudentContext, updateConceptMastery, buildAIContextString } from "@/services/learningHistory";
 
 interface Message {
@@ -36,9 +35,8 @@ export default function AITutorScreen() {
   const params = useLocalSearchParams();
   const subjectName = params.subjectName as string;
   const subjectIcon = params.subjectIcon as string;
-  const subjectProgressId = params.subjectProgressId as string;
 
-  const { user, authUser } = useUser();
+  const { authUser } = useUser();
   const scrollViewRef = useRef<ScrollView>(null);
   
   const [inputText, setInputText] = useState<string>("");
@@ -112,8 +110,9 @@ export default function AITutorScreen() {
 
   useEffect(() => {
     return () => {
-      saveSession();
+      void saveSession();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveSession = async () => {
@@ -220,25 +219,34 @@ export default function AITutorScreen() {
         return;
       }
 
-      const systemPrompt = await buildSystemPrompt(
-        authUser.id,
-        subjectName,
-        'Current Topic',
-        userMessage
-      );
-
-      console.log('System prompt built, length:', systemPrompt.length);
-
-      const contextString = buildAIContextString(await getStudentContext(authUser.id, subjectName));
+      const studentContext = await getStudentContext(authUser.id, subjectName);
+      const contextString = buildAIContextString(studentContext);
+      
+      console.log('Student context loaded');
       console.log('Context string built');
 
-      let messageToSend = systemPrompt + "\n\n" + contextString + "\n\nStudent's question: " + userMessage;
+      // Build comprehensive context for AI
+      let fullMessage = `You are Buddy 🦉, an expert CBSE tutor for ${subjectName}.
+
+${contextString}
+
+REMEMBER:
+- Use simple language for Class ${studentContext.grade}
+- Use Indian examples (₹ rupees, cricket, Bollywood)
+- Break concepts into small steps
+- Be encouraging and patient
+- Use emojis occasionally 😊
+
+---
+
+Student's question: ${userMessage}`;
 
       if (selectedImage) {
-        messageToSend += "\n\n[Student has uploaded an image. Acknowledge it and ask them to describe what they see or need help with.]";
+        fullMessage += "\n\n[Note: Student has uploaded an image. Please acknowledge it and ask them to describe what they see or need help with, since image analysis is not yet available.]";
       }
 
-      await sendMessage(messageToSend);
+      console.log('Sending message to AI...');
+      await sendMessage(fullMessage);
       console.log("✅ Message sent successfully");
 
       setSessionData(prev => ({
@@ -289,10 +297,7 @@ export default function AITutorScreen() {
     }));
   };
 
-  const handleHint = () => {
-    const message = "Can you give me a hint?";
-    setInputText(message);
-  };
+
 
   const handleTakePhoto = async () => {
     try {

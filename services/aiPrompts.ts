@@ -1,5 +1,5 @@
-import { getChapterInfo, findConceptInCurriculum } from '@/data/cbseCurriculum';
-import { getStudentContext, StudentContext } from './learningHistory';
+import { findConceptInCurriculum } from '@/data/cbseCurriculum';
+import { getStudentContext } from './learningHistory';
 
 export const buildSystemPrompt = async (
   userId: string,
@@ -117,7 +117,7 @@ Format your response clearly:
 **Answer:** [Final answer]
 
 **Hint:** [Helpful hint if stuck]`;
-  } catch (error) {
+  } catch {
     return `Create a practice problem for ${concept} suitable for CBSE students. Use Indian context and step-by-step solutions.`;
   }
 };
