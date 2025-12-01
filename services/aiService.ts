@@ -310,6 +310,10 @@ const callAIAPI = async (
 ): Promise<string> => {
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
+  console.log('=== CHECKING API KEY ===');
+  console.log('API Key exists:', !!apiKey);
+  console.log('API Key starts with:', apiKey?.substring(0, 10));
+
   if (!apiKey || apiKey === 'your_openai_api_key_here') {
     console.error('⚠️ OpenAI API key not configured');
     throw new Error('OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
