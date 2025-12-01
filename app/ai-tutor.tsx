@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRorkAgent } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
+import { getTutorInfo, getTutorGreeting } from "@/constants/tutorNames";
 
 import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
 import { getLanguageSettings, LanguageSettings, buildMultilingualSystemPrompt, buildMultilingualPracticeProblemPrompt } from "@/services/multilingualPrompts";
@@ -39,15 +40,17 @@ export default function AITutorScreen() {
   const subjectName = params.subjectName as string;
   const subjectIcon = params.subjectIcon as string;
 
-  const { authUser } = useUser();
+  const { authUser, user } = useUser();
   const scrollViewRef = useRef<ScrollView>(null);
   
   const [inputText, setInputText] = useState<string>("");
+  const tutorInfo = getTutorInfo(subjectName);
+  
   const [chatMessages, setChatMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
-      content: `Hi! I'm Buddy ${subjectIcon}\n\nI'm your personal ${subjectName} tutor. I've analyzed your assessment and I'm here to help you master the concepts you found challenging.\n\nYou can ask me to:\n📖 Explain concepts in simple terms\n✏️ Give you practice problems\n🤔 Answer your questions\n💡 Break down complex topics\n📷 Analyze uploaded images\n\nWhat would you like to learn about today?`,
+      content: getTutorGreeting(subjectName, user?.name || 'Student', 'English'),
       timestamp: new Date(),
     },
   ]);
@@ -155,28 +158,7 @@ export default function AITutorScreen() {
   };
 
   const getLocalizedGreeting = (language: string): string => {
-    const greetings: Record<string, string> = {
-      'Hindi': `नमस्ते! मैं Buddy ${subjectIcon} हूँ\n\nमैं आपका ${subjectName} tutor हूँ। मैं यहाँ आपकी help करने के लिए हूँ।\n\nआप मुझसे:
-📖 Concepts explain करवा सकते हैं
-✏️ Practice problems माँग सकते हैं
-🤔 Questions पूछ सकते हैं
-💡 Complex topics समझ सकते हैं
-📷 Images upload कर सकते हैं\n\nआज आप क्या सीखना चाहेंगे?`,
-      'Hinglish': `Hi! Main Buddy ${subjectIcon} hoon\n\nMain aapka ${subjectName} tutor hoon. Main yahaan help karne ke liye hoon.\n\nAap mujhse:
-📖 Concepts explain karwa sakte hain
-✏️ Practice problems maang sakte hain
-🤔 Questions pooch sakte hain
-💡 Complex topics samajh sakte hain
-📷 Images upload kar sakte hain\n\nAaj aap kya seekhna chahenge?`,
-      'English': `Hi! I'm Buddy ${subjectIcon}\n\nI'm your personal ${subjectName} tutor. I'm here to help you master the concepts you found challenging.\n\nYou can ask me to:
-📖 Explain concepts in simple terms
-✏️ Give you practice problems
-🤔 Answer your questions
-💡 Break down complex topics
-📷 Analyze uploaded images\n\nWhat would you like to learn about today?`
-    };
-    
-    return greetings[language] || greetings['English'];
+    return getTutorGreeting(subjectName, user?.name || 'Student', language);
   };
 
   const buildAndSetSystemPrompt = async (settings?: LanguageSettings) => {
@@ -633,7 +615,7 @@ export default function AITutorScreen() {
               <Text style={styles.headerIcon}>{subjectIcon}</Text>
               <Text style={styles.headerTitle}>{subjectName}</Text>
             </View>
-            <Text style={styles.headerSubtitle}>AI Tutor - Buddy 🦉</Text>
+            <Text style={styles.headerSubtitle}>AI Tutor - {tutorInfo.name} {tutorInfo.emoji}</Text>
           </View>
           <View style={styles.headerSpacer} />
         </View>
@@ -695,7 +677,7 @@ export default function AITutorScreen() {
                 </View>
                 <View style={[styles.messageContent, styles.aiMessageContent]}>
                   <ActivityIndicator size="small" color={Colors.primary} />
-                  <Text style={styles.loadingText}>Buddy is thinking...</Text>
+                  <Text style={styles.loadingText}>{tutorInfo.name} is thinking...</Text>
                 </View>
               </View>
             )}
@@ -737,7 +719,7 @@ export default function AITutorScreen() {
               style={styles.input}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Ask Buddy anything..."
+              placeholder={`Ask ${tutorInfo.name} anything...`}
               placeholderTextColor={Colors.textSecondary}
               multiline
               maxLength={500}

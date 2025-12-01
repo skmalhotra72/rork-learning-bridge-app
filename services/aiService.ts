@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getTutorInfo } from '@/constants/tutorNames';
 
 const generateSessionId = () => {
   return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -117,9 +118,12 @@ export const getAILearningContext = async (
   }
 };
 
-const buildSystemPrompt = (templateType: string, context: AILearningContext): string => {
+const buildSystemPrompt = (templateType: string, context: AILearningContext, subjectName?: string): string => {
+  const firstName = context.student?.name?.split(' ')[0] || 'student';
+  const tutorInfo = subjectName ? getTutorInfo(subjectName) : { name: 'Your Tutor', emoji: '👨‍🏫' };
+  
   const templates: Record<string, string> = {
-    explain: `You are Buddy, a friendly and encouraging AI tutor helping ${context.student?.name || 'student'}, a Class ${context.student?.grade || '10'} student.
+    explain: `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly and encouraging tutor helping ${firstName}, a Class ${context.student?.grade || '10'} student.
 
 ${context.current_topic ? `CURRENT TOPIC: ${context.current_topic.topic_title}
 ${context.current_topic.topic_description ? `Description: ${context.current_topic.topic_description}` : ''}` : ''}
@@ -145,7 +149,7 @@ YOUR APPROACH:
 
 Respond to the student's question in a helpful, encouraging way.`,
 
-    doubt: `You are Buddy, solving a specific doubt for ${context.student?.name || 'student'}.
+    doubt: `You are ${tutorInfo.name} ${tutorInfo.emoji}, solving a specific doubt for ${firstName}.
 
 TOPIC: ${context.current_topic?.topic_title || 'General'}
 STUDENT'S LEVEL: Class ${context.student?.grade || '10'}
@@ -163,7 +167,7 @@ TASK:
 
 Be concise but thorough.`,
 
-    practice: `You are Buddy, generating practice problems.
+    practice: `You are ${tutorInfo.name} ${tutorInfo.emoji}, generating practice problems.
 
 TOPIC: ${context.current_topic?.topic_title || 'General'}
 LEVEL: Class ${context.student?.grade || '10'}
@@ -184,7 +188,7 @@ Problem 1: [statement]
 Solution: [steps]
 Answer: [final answer]`,
 
-    progress: `You are Buddy, analyzing progress for ${context.student?.name || 'student'}.
+    progress: `You are ${tutorInfo.name} ${tutorInfo.emoji}, analyzing progress for ${firstName}.
 
 OVERALL:
 - Level ${context.overall_stats?.current_level || 1}
@@ -217,6 +221,7 @@ export interface SendAIMessageOptions {
   sessionId?: string;
   agentType?: 'learning_coach' | 'doubt_solver' | 'practice_generator' | 'progress_analyst';
   conversationHistory?: Array<{ role: string; content: string }>;
+  subjectName?: string;
 }
 
 export const sendAIMessage = async (
@@ -240,6 +245,7 @@ export const sendAIMessage = async (
       sessionId = generateSessionId(),
       agentType = 'learning_coach',
       conversationHistory = [],
+      subjectName = undefined,
     } = options;
 
     const contextResult = await getAILearningContext(userId, topicId, chapterId);
@@ -253,7 +259,8 @@ export const sendAIMessage = async (
       agentType === 'doubt_solver' ? 'doubt' :
       agentType === 'practice_generator' ? 'practice' :
       agentType === 'progress_analyst' ? 'progress' : 'explain',
-      context
+      context,
+      subjectName
     );
 
     const aiResponse = await callAIAPI(message, systemPrompt, conversationHistory);
