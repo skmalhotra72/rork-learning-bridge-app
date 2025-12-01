@@ -140,12 +140,12 @@ export const getRecentActivity = async (userId: string, limit: number = 10): Pro
 
 export const getDifficultChapters = async (userId: string, limit: number = 5): Promise<DifficultChapter[]> => {
   try {
+    console.log('=== FETCHING DIFFICULT CHAPTERS ===');
+    
     const { data, error } = await supabase
       .from('student_chapter_progress')
       .select(`
         chapter_id,
-        marked_difficult,
-        last_studied,
         cbse_chapters(
           chapter_title,
           cbse_books(
@@ -154,19 +154,25 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
         )
       `)
       .eq('user_id', userId)
-      .eq('marked_difficult', true)
-      .order('last_studied', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) {
+      if (error.message?.includes('does not exist')) {
+        console.warn('Database schema incomplete - missing columns in student_chapter_progress table');
+        console.warn('Please ensure the following columns exist: marked_difficult, marked_completed, confidence_level, study_time_minutes');
+        return [];
+      }
       console.error('Get difficult chapters error:', error.message || JSON.stringify(error));
       return [];
     }
 
     if (!data) {
+      console.log('✅ No chapter progress found');
       return [];
     }
 
+    console.log(`✅ Found ${data.length} chapter(s) in progress`);
     return data.map((item: any) => {
       const chapter = item.cbse_chapters;
       const book = chapter?.cbse_books;
