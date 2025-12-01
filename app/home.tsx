@@ -18,6 +18,9 @@ import Colors from "@/constants/colors";
 import { SUBJECTS, type Subject } from "@/constants/types";
 import { useUser } from "@/contexts/UserContext";
 import { supabase, SubjectProgress } from "@/lib/supabase";
+import { getDashboardData, getSubjectProgress } from "@/services/dashboard";
+import type { DashboardData, SubjectProgressView } from "@/services/dashboard";
+import { SubjectProgressCard, StatsCard, MasteryBadge } from "@/components/ProgressComponents";
 
 const getTimeBasedGreeting = () => {
   const hour = new Date().getHours();
@@ -32,6 +35,8 @@ export default function HomeScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [menuVisible, setMenuVisible] = useState(false);
   const [subjectProgress, setSubjectProgress] = useState<SubjectProgress[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [cbseSubjectProgress, setCbseSubjectProgress] = useState<SubjectProgressView[]>([]);
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -46,12 +51,14 @@ export default function HomeScreen() {
       if (authUser) {
         console.log("Loading dashboard data in parallel for user:", authUser.id);
         
-        const [, progressResult] = await Promise.all([
+        const [, progressResult, dashData, cbseProgress] = await Promise.all([
           refreshData(),
           supabase
             .from("subject_progress")
             .select("*")
-            .eq("user_id", authUser.id)
+            .eq("user_id", authUser.id),
+          getDashboardData(authUser.id),
+          getSubjectProgress(authUser.id)
         ]);
 
         if (progressResult.error) {
@@ -59,6 +66,16 @@ export default function HomeScreen() {
         } else {
           console.log("Loaded subject progress:", progressResult.data?.length || 0, "subjects");
           setSubjectProgress(progressResult.data || []);
+        }
+
+        if (dashData) {
+          console.log("Loaded dashboard data:", dashData);
+          setDashboardData(dashData);
+        }
+
+        if (cbseProgress) {
+          console.log("Loaded CBSE subject progress:", cbseProgress.length, "subjects");
+          setCbseSubjectProgress(cbseProgress);
         }
       } else {
         await refreshData();
@@ -195,6 +212,29 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {dashboardData?.summary && (
+            <View style={styles.enhancedStatsContainer}>
+              <StatsCard
+                icon="📚"
+                label="Chapters"
+                value={dashboardData.summary.chapters_completed || 0}
+                color="#4F46E5"
+              />
+              <StatsCard
+                icon="🎯"
+                label="Mastered"
+                value={dashboardData.summary.chapters_mastered || 0}
+                color="#10B981"
+              />
+              <StatsCard
+                icon="⏱️"
+                label="Hours"
+                value={dashboardData.summary.total_hours_studied?.toFixed(1) || '0'}
+                color="#F59E0B"
+              />
+            </View>
+          )}
+
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <View style={styles.statIconContainer}>
@@ -220,6 +260,56 @@ export default function HomeScreen() {
               <Text style={styles.statLabel}>Concepts</Text>
             </View>
           </View>
+
+          {dashboardData?.summary?.avg_mastery_score && (
+            <View style={styles.overallProgress}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Overall Performance</Text>
+                <MasteryBadge score={dashboardData.summary.avg_mastery_score} />
+              </View>
+              <View style={styles.progressStats}>
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressStatValue}>
+                    {Math.round(dashboardData.summary.avg_mastery_score)}%
+                  </Text>
+                  <Text style={styles.progressStatLabel}>Average Score</Text>
+                </View>
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressStatValue}>
+                    {dashboardData.summary.chapters_in_progress || 0}
+                  </Text>
+                  <Text style={styles.progressStatLabel}>In Progress</Text>
+                </View>
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressStatValue}>
+                    {dashboardData.summary.difficult_chapters_count || 0}
+                  </Text>
+                  <Text style={styles.progressStatLabel}>Need Help</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {cbseSubjectProgress.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Chapter Progress</Text>
+              {cbseSubjectProgress.map((subject) => (
+                <SubjectProgressCard
+                  key={subject.subject_id}
+                  subject={subject}
+                  onPress={() => {
+                    router.push({
+                      pathname: "/chapter-index",
+                      params: {
+                        subjectCode: subject.subject_code,
+                        gradeNumber: user.grade,
+                      },
+                    });
+                  }}
+                />
+              ))}
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Your Subjects</Text>
@@ -455,6 +545,12 @@ const styles = StyleSheet.create({
     fontWeight: "600" as const,
     color: Colors.text,
   },
+  enhancedStatsContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+    paddingHorizontal: 0,
+  },
   statsContainer: {
     flexDirection: "row",
     gap: 12,
@@ -496,6 +592,37 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
+  },
+  overallProgress: {
+    backgroundColor: Colors.cardBackground,
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  progressStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  progressStat: {
+    alignItems: "center",
+  },
+  progressStatValue: {
+    fontSize: 28,
+    fontWeight: "bold" as const,
+    color: Colors.primary,
+    marginBottom: 4,
+  },
+  progressStatLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
   },
   sectionTitle: {
     fontSize: 20,
