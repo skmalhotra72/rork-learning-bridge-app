@@ -24,6 +24,7 @@ import { useUser } from "@/contexts/UserContext";
 import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
 import { getLanguageSettings, LanguageSettings, buildMultilingualSystemPrompt, buildMultilingualPracticeProblemPrompt } from "@/services/multilingualPrompts";
 import { addXP, updateStreak, checkBadgeEligibility } from "@/services/gamification";
+import { aiChatRateLimiter } from "@/utils/rateLimiter";
 
 interface Message {
   id: string;
@@ -196,25 +197,35 @@ export default function AITutorScreen() {
     }
   };
 
+  const isSavingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
+
   useEffect(() => {
+    hasInitializedRef.current = true;
     return () => {
-      void saveSession();
+      if (!isSavingRef.current) {
+        isSavingRef.current = true;
+        void saveSession();
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveSession = async () => {
-    if (!authUser?.id) return;
+    if (!authUser?.id || isSavingRef.current) return;
+    isSavingRef.current = true;
     
     const duration = Math.floor((Date.now() - sessionData.startTime) / 1000);
     
     if (duration < 10) {
       console.log('Session too short (<10s), not saving');
+      isSavingRef.current = false;
       return;
     }
     
     if (sessionData.conceptsExplained.length === 0 && sessionData.problemsSolved === 0 && sessionData.questionsAsked === 0) {
       console.log('No meaningful interaction, not saving');
+      isSavingRef.current = false;
       return;
     }
     
@@ -309,11 +320,33 @@ export default function AITutorScreen() {
       }
     } catch (error) {
       console.error('❌ Session save error:', error);
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   const handleSend = async () => {
     if (!inputText.trim() && !selectedImage) return;
+
+    if (!authUser?.id) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    const rateLimit = aiChatRateLimiter.check(
+      `ai-chat-${authUser.id}`,
+      20,
+      60000
+    );
+
+    if (!rateLimit.allowed) {
+      Alert.alert(
+        'Slow Down! 🐢',
+        `You're sending messages too quickly. Please wait ${rateLimit.retryAfter} seconds before trying again.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
     const userMessage = inputText.trim();
     const imageCopy = selectedImage;
@@ -327,11 +360,6 @@ export default function AITutorScreen() {
     console.log("Selected image:", imageCopy ? 'Yes' : 'No');
 
     try {
-      if (!authUser?.id) {
-        Alert.alert('Error', 'User not authenticated');
-        return;
-      }
-
       let currentPrompt = systemPrompt;
       if (!currentPrompt && languageSettings) {
         console.log('⚠️ Warning: No system prompt set, building now...');
