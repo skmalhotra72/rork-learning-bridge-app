@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getTutorInfo } from '@/constants/tutorNames';
+import { Config, isOpenAIConfigured } from '@/constants/config';
 
 const generateSessionId = () => {
   return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -308,16 +309,19 @@ const callAIAPI = async (
   systemPrompt: string,
   conversationHistory: Array<{ role: string; content: string }>
 ): Promise<string> => {
-  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-
   console.log('=== CHECKING API KEY ===');
-  console.log('API Key exists:', !!apiKey);
-  console.log('API Key starts with:', apiKey?.substring(0, 10));
+  console.log('API Key configured:', isOpenAIConfigured());
+  console.log('API Key exists:', !!Config.OPENAI_API_KEY);
+  console.log('API Key length:', Config.OPENAI_API_KEY?.length);
+  console.log('API Key starts with:', Config.OPENAI_API_KEY?.substring(0, 7));
 
-  if (!apiKey || apiKey === 'your_openai_api_key_here') {
+  if (!isOpenAIConfigured()) {
     console.error('⚠️ OpenAI API key not configured');
-    throw new Error('OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
+    console.error('Config value:', Config.OPENAI_API_KEY);
+    throw new Error('API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
   }
+
+  const apiKey = Config.OPENAI_API_KEY!;
 
   console.log('=== CALLING OPENAI API ===');
   console.log('System prompt length:', systemPrompt.length);

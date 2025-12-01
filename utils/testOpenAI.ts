@@ -1,3 +1,5 @@
+import { Config, isOpenAIConfigured } from '@/constants/config';
+
 /**
  * Test OpenAI API Connection
  * This utility tests if the OpenAI API is configured correctly and responding
@@ -10,19 +12,21 @@ export const testOpenAIConnection = async (): Promise<{
   error?: any;
 }> => {
   try {
-    const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-
     console.log('=== TESTING OPENAI CONNECTION ===');
-    console.log('API Key exists:', !!apiKey);
-    console.log('API Key starts with:', apiKey?.substring(0, 15));
+    console.log('API Key exists:', !!Config.OPENAI_API_KEY);
+    console.log('API Key configured:', isOpenAIConfigured());
+    console.log('API Key length:', Config.OPENAI_API_KEY?.length);
+    console.log('API Key starts with:', Config.OPENAI_API_KEY?.substring(0, 15));
 
-    if (!apiKey || apiKey === 'your_openai_api_key_here') {
+    if (!isOpenAIConfigured()) {
       return {
         success: false,
         message: 'OpenAI API key not configured',
-        error: 'No API key found in environment variables',
+        error: 'No API key found in environment variables. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file and restart the app.',
       };
     }
+
+    const apiKey = Config.OPENAI_API_KEY!;
 
     const testMessage = {
       role: 'user',
@@ -109,15 +113,15 @@ export const testOpenAIWithPrompt = async (
   error?: any;
 }> => {
   try {
-    const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-
-    if (!apiKey || apiKey === 'your_openai_api_key_here') {
+    if (!isOpenAIConfigured()) {
       return {
         success: false,
         message: 'OpenAI API key not configured',
-        error: 'No API key found',
+        error: 'No API key found. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file and restart the app.',
       };
     }
+
+    const apiKey = Config.OPENAI_API_KEY!;
 
     console.log('=== TESTING WITH CUSTOM PROMPT ===');
     console.log('Prompt:', prompt);
