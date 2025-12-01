@@ -363,16 +363,17 @@ export default function AITutorScreen() {
         setSystemPrompt(currentPrompt);
       }
 
+      if (!currentPrompt) {
+        currentPrompt = `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly AI tutor helping ${user?.name || 'student'} learn ${subjectName}. Be encouraging, patient, and clear in your explanations. Use simple language appropriate for Class ${user?.grade || '10'} students.`;
+      }
+
       if (currentPrompt) {
-        console.log('✅ Using multilingual system prompt');
+        console.log('✅ Using system prompt');
         console.log('Prompt language:', languageSettings?.preferred_tutoring_language);
         console.log('Code mixing:', languageSettings?.allow_code_mixing);
       }
       
-      const messageWithContext = currentPrompt 
-        ? `${currentPrompt}\n\nStudent's question: ${userMessage}`
-        : userMessage;
-      
+      const messageWithContext = `${currentPrompt}\n\nStudent's question: ${userMessage}`;
       await sendMessage(messageWithContext);
       console.log("✅ Message sent successfully");
 
