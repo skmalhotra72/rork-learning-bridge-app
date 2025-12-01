@@ -145,10 +145,11 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
       .select(`
         chapter_id,
         confidence_level,
-        chapter:cbse_chapters(
+        last_studied,
+        cbse_chapters(
           chapter_title,
-          book:cbse_books(
-            subject:cbse_subjects(subject_name, icon_emoji)
+          cbse_books(
+            cbse_subjects(subject_name, icon_emoji)
           )
         )
       `)
@@ -162,14 +163,24 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
       return [];
     }
 
-    return (data || []).map((item: any) => ({
-      chapter_id: item.chapter_id,
-      chapter_title: item.chapter?.chapter_title || '',
-      subject_name: item.chapter?.book?.subject?.subject_name || '',
-      icon_emoji: item.chapter?.book?.subject?.icon_emoji || '📚',
-      mastery_score: item.confidence_level,
-      study_time_minutes: 0,
-    }));
+    if (!data) {
+      return [];
+    }
+
+    return data.map((item: any) => {
+      const chapter = item.cbse_chapters;
+      const book = chapter?.cbse_books;
+      const subject = book?.cbse_subjects;
+
+      return {
+        chapter_id: item.chapter_id,
+        chapter_title: chapter?.chapter_title || '',
+        subject_name: subject?.subject_name || '',
+        icon_emoji: subject?.icon_emoji || '📚',
+        mastery_score: item.confidence_level,
+        study_time_minutes: 0,
+      };
+    });
 
   } catch (error: any) {
     console.error('Get difficult chapters exception:', error.message || JSON.stringify(error));
