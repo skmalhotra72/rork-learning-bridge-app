@@ -40,6 +40,7 @@ function RootLayoutNav() {
       <Stack.Screen name="chapter-index" options={{ headerShown: false }} />
       <Stack.Screen name="topic-detail" options={{ headerShown: false }} />
       <Stack.Screen name="practice-questions" options={{ headerShown: false }} />
+      <Stack.Screen name="practice-results" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );

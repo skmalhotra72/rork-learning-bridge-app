@@ -154,17 +154,13 @@ export default function PracticeQuestionsScreen() {
       const completeResult = await completePracticeSession(sessionId)
 
       if (completeResult.success && completeResult.summary) {
-        // Show results in an alert for now
-        Alert.alert(
-          'Practice Complete! 🎉',
-          `You answered ${score.correct} out of ${score.total} questions correctly!\n\nScore: ${Math.round((score.correct / score.total) * 100)}%`,
-          [
-            {
-              text: 'OK',
-              onPress: () => router.back(),
-            },
-          ]
-        )
+        router.replace({
+          pathname: '/practice-results',
+          params: {
+            summary: JSON.stringify(completeResult.summary),
+            topicTitle: topicTitle || 'Practice',
+          },
+        })
       }
     }
   }
