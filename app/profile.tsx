@@ -36,6 +36,7 @@ import { useUser } from "@/contexts/UserContext";
 import { generateParentInvitation } from "@/services/parentPortal";
 import { APP_VERSION, BUILD_NUMBER, APP_CONFIG, APP_LINKS } from "@/constants/appConfig";
 import { supabase } from "@/lib/supabase";
+import DeveloperMenu from "@/components/DeveloperMenu";
 
 export default function ProfileScreen() {
   const { user, authUser, logout } = useUser();
@@ -47,9 +48,12 @@ export default function ProfileScreen() {
     allowParentAccess: true,
     dataCollection: true,
   });
+  const [devMenuVisible, setDevMenuVisible] = useState(false);
+  const [versionPressCount, setVersionPressCount] = useState(0);
 
   useEffect(() => {
     loadPrivacySettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser]);
 
   const loadPrivacySettings = async () => {
@@ -267,6 +271,19 @@ export default function ProfileScreen() {
   const navigateToProfile = () => {
     setMenuVisible(false);
     router.push("/profile");
+  };
+
+  const handleVersionPress = () => {
+    const newCount = versionPressCount + 1;
+    setVersionPressCount(newCount);
+
+    if (newCount >= 7) {
+      setVersionPressCount(0);
+      setDevMenuVisible(true);
+      Alert.alert('Developer Menu', '🔧 Developer mode activated!');
+    }
+
+    setTimeout(() => setVersionPressCount(0), 3000);
   };
 
   return (
@@ -690,10 +707,18 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.versionContainer}>
+          <Pressable
+            style={styles.versionContainer}
+            onPress={handleVersionPress}
+          >
             <Text style={styles.versionText}>{APP_CONFIG.shortName} v{APP_VERSION}</Text>
             <Text style={styles.copyrightText}>© 2025 Learning Bridge. All rights reserved.</Text>
-          </View>
+            {__DEV__ && (
+              <Text style={styles.devHint}>
+                Tap 7 times for developer menu
+              </Text>
+            )}
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
 
@@ -751,6 +776,11 @@ export default function ProfileScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      <DeveloperMenu
+        visible={devMenuVisible}
+        onClose={() => setDevMenuVisible(false)}
+      />
     </View>
   );
 }
@@ -1044,5 +1074,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     flexWrap: "wrap" as const,
+  },
+  devHint: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 8,
+    fontStyle: "italic" as const,
   },
 });
