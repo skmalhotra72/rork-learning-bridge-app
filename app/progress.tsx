@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Award, BookOpen, Flame, Menu, Target } from "lucide-react-native";
 import React, { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -10,7 +10,7 @@ import { SUBJECTS } from "@/constants/types";
 import { useUser } from "@/contexts/UserContext";
 
 export default function ProgressScreen() {
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const [menuVisible, setMenuVisible] = useState(false);
 
   if (!user) return null;
@@ -32,6 +32,22 @@ export default function ProgressScreen() {
   const navigateToProfile = () => {
     setMenuVisible(false);
     router.push("/profile");
+  };
+
+  const handleLogout = () => {
+    setMenuVisible(false);
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: () => logout(),
+        },
+      ]
+    );
   };
 
   return (
@@ -207,6 +223,16 @@ export default function ProgressScreen() {
               onPress={navigateToProfile}
             >
               <Text style={styles.menuItemText}>👤 Profile</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.menuItemPressed,
+              ]}
+              onPress={handleLogout}
+            >
+              <Text style={[styles.menuItemText, { color: Colors.error }]}>🚪 Logout</Text>
             </Pressable>
 
             <Pressable

@@ -31,7 +31,7 @@ const getTimeBasedGreeting = () => {
 };
 
 export default function HomeScreen() {
-  const { user, stats: userStats, refreshData, authUser } = useUser();
+  const { user, stats: userStats, refreshData, authUser, logout } = useUser();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [menuVisible, setMenuVisible] = useState(false);
   const [subjectProgress, setSubjectProgress] = useState<SubjectProgress[]>([]);
@@ -171,6 +171,22 @@ export default function HomeScreen() {
   const navigateToBadges = () => {
     setMenuVisible(false);
     router.push("/badges");
+  };
+
+  const handleLogout = () => {
+    setMenuVisible(false);
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: () => logout(),
+        },
+      ]
+    );
   };
 
   return (
@@ -476,6 +492,16 @@ export default function HomeScreen() {
               onPress={navigateToBadges}
             >
               <Text style={styles.menuItemText}>🏆 Badges</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.menuItemPressed,
+              ]}
+              onPress={handleLogout}
+            >
+              <Text style={[styles.menuItemText, { color: Colors.error }]}>🚪 Logout</Text>
             </Pressable>
 
             <Pressable
