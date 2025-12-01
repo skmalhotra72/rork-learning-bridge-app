@@ -252,7 +252,13 @@ export default function TopicDetailScreen() {
           <Pressable
             style={({ pressed }) => [styles.practiceButton, pressed && styles.buttonPressed]}
             onPress={() => {
-              console.log('Practice questions');
+              router.push({
+                pathname: '/practice-questions',
+                params: {
+                  topicId: topicId,
+                  topicTitle: topicData?.topic.topic_title || params.topicTitle || 'Practice',
+                },
+              });
             }}
           >
             <Text style={styles.practiceButtonText}>📝 Practice Questions</Text>
