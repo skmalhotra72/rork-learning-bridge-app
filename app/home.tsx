@@ -62,7 +62,12 @@ export default function HomeScreen() {
         ]);
 
         if (progressResult.error) {
-          console.error("Error loading subject progress:", progressResult.error);
+          console.error("Error loading subject progress:", JSON.stringify(progressResult.error));
+          Alert.alert(
+            'Database Error',
+            'Error loading subjects. Please check the database setup.',
+            [{ text: 'OK' }]
+          );
         } else {
           console.log("Loaded subject progress:", progressResult.data?.length || 0, "subjects");
           setSubjectProgress(progressResult.data || []);

@@ -361,10 +361,15 @@ const callAIAPI = async (
   context: AILearningContext
 ): Promise<string> => {
   console.log('=== CHECKING API KEY ===');
-  console.log('API Key configured:', isOpenAIConfigured());
+  const configured = isOpenAIConfigured();
+  console.log('API Key configured:', configured);
+  console.log('Config.OPENAI_API_KEY exists:', !!Config.OPENAI_API_KEY);
+  console.log('Config.OPENAI_API_KEY length:', Config.OPENAI_API_KEY?.length || 0);
+  console.log('Config.OPENAI_API_KEY starts with sk-:', Config.OPENAI_API_KEY?.startsWith('sk-'));
   
-  if (!isOpenAIConfigured()) {
+  if (!configured) {
     console.log('⚠️ OpenAI API key not configured - using simulated responses');
+    console.log('PLEASE ADD YOUR OPENAI API KEY TO THE env FILE');
     return simulateAIResponse(userMessage, systemPrompt, context);
   }
 
