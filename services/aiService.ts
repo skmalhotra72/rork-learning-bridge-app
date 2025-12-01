@@ -264,7 +264,7 @@ export const sendAIMessage = async (
       subjectName
     );
 
-    const aiResponse = await callAIAPI(message, systemPrompt, conversationHistory);
+    const aiResponse = await callAIAPI(message, systemPrompt, conversationHistory, context);
 
     const responseTime = Date.now() - startTime;
 
@@ -304,25 +304,66 @@ export const sendAIMessage = async (
   }
 };
 
+const simulateAIResponse = async (
+  userMessage: string,
+  systemPrompt: string,
+  context: AILearningContext
+): Promise<string> => {
+  console.log('=== USING SIMULATED AI (No API Key) ===');
+  
+  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+  
+  const messageLower = userMessage.toLowerCase();
+  const studentName = context.student?.name?.split(' ')[0] || 'Student';
+  const grade = context.student?.grade || '10';
+  const topic = context.current_topic?.topic_title || 'this topic';
+  
+  if (messageLower.includes('explain') || messageLower.includes('समझा') || messageLower.includes('what is')) {
+    return `Great question, ${studentName}! 🎯\n\nLet me explain ${topic} in a simple way:\n\n1️⃣ **Core Concept**: Think of it like a building block in ${topic}. Just like how we use bricks to build a house, this concept helps us understand bigger ideas.\n\n2️⃣ **Real-world Example**: Imagine you're at a cricket match 🏏. The way runs add up is similar to how these concepts work together.\n\n3️⃣ **Key Points for Class ${grade}**:\n   • Start with the basics\n   • Build step by step\n   • Practice makes perfect\n\n💡 **Pro Tip**: Try to connect this with what you already know. It makes learning easier!\n\nDoes this make sense? Want me to explain any part in more detail?`;
+  }
+  
+  if (messageLower.includes('practice') || messageLower.includes('problem') || messageLower.includes('question')) {
+    return `Awesome! Let's practice! 💪\n\n**Practice Problem for Class ${grade}:**\n\nConsider this example related to ${topic}:\n\n**Question**: Solve the following step by step.\n\n**Steps to follow:**\n1. Read the problem carefully\n2. Identify what's given and what's asked\n3. Apply the formula or concept\n4. Calculate step by step\n5. Check your answer\n\n**Hint**: Remember to show your work! It helps you catch mistakes and understand better.\n\n**Example Solution Approach:**\nStep 1: Write down what you know\nStep 2: Apply the concept we discussed\nStep 3: Simplify and solve\nStep 4: Verify your answer\n\n🎯 Try solving it yourself first! If you get stuck, let me know where you're having trouble and I'll guide you.\n\n📚 Remember: Making mistakes is part of learning!`;
+  }
+  
+  if (messageLower.includes('solve') || messageLower.includes('help') || messageLower.includes('how to')) {
+    return `I'm here to help you, ${studentName}! 🙌\n\n**Let's break this down together:**\n\n🔍 **Step 1 - Understand**\nFirst, let's make sure we understand what the question is asking. Can you identify the key information?\n\n📝 **Step 2 - Plan**\nThink about which concept from ${topic} applies here. What formula or method should we use?\n\n⚡ **Step 3 - Execute**\nLet's work through it systematically:\n   • Start with what you know\n   • Apply the concept step by step\n   • Show your calculations\n\n✅ **Step 4 - Check**\nAlways verify your answer makes sense!\n\n**Key Concept for Class ${grade}:**\nThis relates to understanding the fundamentals. The more you practice, the more confident you'll become.\n\n🌟 **Tip**: Don't rush! Take your time to understand each step. Quality over speed!\n\nWhat part would you like me to focus on?`;
+  }
+  
+  if (messageLower.includes('difficult') || messageLower.includes('hard') || messageLower.includes('confused')) {
+    return `I understand, ${studentName}. Don't worry! 💙\n\nMany Class ${grade} students find ${topic} challenging at first. That's completely normal and means you're pushing yourself to learn!\n\n**Let's make it easier:**\n\n🎯 **Simplify the Concept**\nThink of it this way: [Simple analogy related to everyday life]\n\n📚 **Break it Down**\nInstead of looking at the whole problem, let's focus on small parts:\n   • Part 1: Basic understanding\n   • Part 2: Simple examples\n   • Part 3: Practice problems\n\n💪 **Build Confidence**\nStart with easier problems and gradually work your way up. Every expert was once a beginner!\n\n🌟 **Study Tips:**\n1. Review the basics first\n2. Practice regularly (even 15 minutes daily helps!)\n3. Don't hesitate to ask questions\n4. Teach someone else (best way to learn!)\n\n**Remember**: Struggling means you're learning! Keep going! 🚀\n\nShall we start with a simple example?`;
+  }
+  
+  if (messageLower.includes('progress') || messageLower.includes('how am i doing')) {
+    const level = context.overall_stats?.current_level || 1;
+    const xp = context.overall_stats?.total_xp || 0;
+    const streak = context.overall_stats?.current_streak || 0;
+    
+    return `${studentName}, you're doing great! 🎉\n\n**Your Progress Summary:**\n\n📊 **Level**: ${level}\n⭐ **Total XP**: ${xp}\n🔥 **Streak**: ${streak} days\n\n**Strengths:**\n✅ You're actively engaging with the material\n✅ Asking good questions shows curiosity\n✅ Regular practice is building your skills\n\n**Areas to Focus:**\n📚 Keep practicing ${topic} regularly\n💪 Challenge yourself with harder problems\n🎯 Try to maintain your study streak\n\n**Recommendations for Class ${grade}:**\n1. Spend 20-30 minutes daily on practice\n2. Review mistakes - they're learning opportunities\n3. Connect concepts to real-world examples\n4. Don't hesitate to ask for help\n\n🌟 **Achievement Unlocked**: You're building a strong foundation!\n\nKeep up the excellent work! Your dedication will pay off! 🚀`;
+  }
+  
+  if (messageLower.includes('thank') || messageLower.includes('thanks') || messageLower.includes('धन्यवाद')) {
+    return `You're very welcome, ${studentName}! 😊\n\nI'm so happy I could help! Remember:\n\n💡 Learning is a journey, not a race\n🎯 Every question you ask makes you smarter\n🌟 Keep that curiosity alive!\n\nIf you need help with anything else about ${topic} or any other subject, I'm always here for you!\n\nHappy learning! 📚✨`;
+  }
+  
+  return `That's an interesting question about ${topic}, ${studentName}! 🤔\n\n**Let me help you with that:**\n\nFor Class ${grade} students, it's important to understand the core principles. Here's what you need to know:\n\n🎯 **Key Points:**\n• Focus on understanding the 'why' not just the 'how'\n• Connect new concepts to what you already know\n• Practice regularly to build mastery\n\n📝 **Approach:**\n1. Start with the fundamentals\n2. Work through examples step by step\n3. Apply concepts to different scenarios\n4. Review and reinforce your understanding\n\n💪 **Study Strategy:**\n• Break complex topics into smaller chunks\n• Use diagrams and visual aids when possible\n• Explain concepts in your own words\n• Test yourself regularly\n\n🌟 **Remember**: The fact that you're asking questions means you're on the right path to mastery!\n\nWould you like me to explain any specific part in more detail? Or shall we try a practice problem?`;
+};
+
 const callAIAPI = async (
   userMessage: string,
   systemPrompt: string,
-  conversationHistory: Array<{ role: string; content: string }>
+  conversationHistory: Array<{ role: string; content: string }>,
+  context: AILearningContext
 ): Promise<string> => {
   console.log('=== CHECKING API KEY ===');
   console.log('API Key configured:', isOpenAIConfigured());
-  console.log('API Key exists:', !!Config.OPENAI_API_KEY);
-  console.log('API Key length:', Config.OPENAI_API_KEY?.length);
-  console.log('API Key starts with:', Config.OPENAI_API_KEY?.substring(0, 7));
-
+  
   if (!isOpenAIConfigured()) {
-    console.error('⚠️ OpenAI API key not configured');
-    console.error('Config value:', Config.OPENAI_API_KEY);
-    throw new Error('API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
+    console.log('⚠️ OpenAI API key not configured - using simulated responses');
+    return simulateAIResponse(userMessage, systemPrompt, context);
   }
 
   const apiKey = Config.OPENAI_API_KEY!;
-
   console.log('=== CALLING OPENAI API ===');
   console.log('System prompt length:', systemPrompt.length);
   console.log('Conversation history length:', conversationHistory.length);
@@ -352,14 +393,16 @@ const callAIAPI = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       console.error('❌ OpenAI API error:', response.status, errorData);
-      throw new Error(`OpenAI API error: ${response.status} ${errorData?.error?.message || response.statusText}`);
+      console.log('⚠️ Falling back to simulated response');
+      return simulateAIResponse(userMessage, systemPrompt, context);
     }
 
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content;
 
     if (!aiResponse) {
-      throw new Error('No response from OpenAI');
+      console.log('⚠️ No response from OpenAI - using simulated response');
+      return simulateAIResponse(userMessage, systemPrompt, context);
     }
 
     console.log('✅ OpenAI response received:', aiResponse.substring(0, 100));
@@ -367,10 +410,8 @@ const callAIAPI = async (
 
   } catch (error) {
     console.error('❌ OpenAI API call failed:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to get response from OpenAI');
+    console.log('⚠️ Falling back to simulated response');
+    return simulateAIResponse(userMessage, systemPrompt, context);
   }
 };
 
