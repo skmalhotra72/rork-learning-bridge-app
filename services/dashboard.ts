@@ -154,7 +154,7 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
         )
       `)
       .eq('user_id', userId)
-      .or('marked_difficult.eq.true,marked_as_difficult.eq.true')
+      .eq('marked_difficult', true)
       .order('last_studied', { ascending: false })
       .limit(limit);
 
