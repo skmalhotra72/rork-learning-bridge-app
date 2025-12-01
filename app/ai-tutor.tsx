@@ -67,7 +67,7 @@ export default function AITutorScreen() {
   const [languageSettings, setLanguageSettings] = useState<LanguageSettings | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string>('');
 
-  const { messages, sendMessage } = useRorkAgent({
+  const { messages, sendMessage, error: agentError } = useRorkAgent({
     tools: {},
   });
 
@@ -316,13 +316,15 @@ export default function AITutorScreen() {
     if (!inputText.trim() && !selectedImage) return;
 
     const userMessage = inputText.trim();
+    const imageCopy = selectedImage;
     setInputText("");
+    setSelectedImage(null);
 
     console.log("=== SENDING MESSAGE TO AI ===");
     console.log("User message:", userMessage);
     console.log("Language:", languageSettings?.preferred_tutoring_language);
     console.log("Code mixing:", languageSettings?.allow_code_mixing);
-    console.log("Selected image:", selectedImage ? 'Yes' : 'No');
+    console.log("Selected image:", imageCopy ? 'Yes' : 'No');
 
     try {
       if (!authUser?.id) {
@@ -330,25 +332,24 @@ export default function AITutorScreen() {
         return;
       }
 
-      // Build system prompt if not already built
       let currentPrompt = systemPrompt;
-      if (!currentPrompt) {
+      if (!currentPrompt && languageSettings) {
         console.log('⚠️ Warning: No system prompt set, building now...');
-        await buildAndSetSystemPrompt();
-        currentPrompt = systemPrompt || '';
+        currentPrompt = await buildMultilingualSystemPrompt(
+          authUser.id,
+          subjectName,
+          'Interactive Learning',
+          userMessage
+        );
+        setSystemPrompt(currentPrompt);
       }
 
       if (currentPrompt) {
-        console.log('Using multilingual system prompt');
+        console.log('✅ Using multilingual system prompt');
         console.log('Prompt language:', languageSettings?.preferred_tutoring_language);
         console.log('Code mixing:', languageSettings?.allow_code_mixing);
       }
       
-      if (selectedImage) {
-        console.log('Note: Image selected but image analysis not yet implemented');
-      }
-      
-      // Send message with system prompt context
       const messageWithContext = currentPrompt 
         ? `${currentPrompt}\n\nStudent's question: ${userMessage}`
         : userMessage;
@@ -364,7 +365,6 @@ export default function AITutorScreen() {
         tutoringLanguage: languageSettings?.preferred_tutoring_language || 'English'
       }));
 
-      // Award XP for active learning (asking questions)
       await addXP(
         authUser.id,
         5,
@@ -374,19 +374,26 @@ export default function AITutorScreen() {
       );
 
       console.log('✅ Awarded 5 XP for active learning');
-
-      setSelectedImage(null);
     } catch (error) {
       console.error("❌ Error sending message:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("❌ Error details:", errorMessage);
+      
       setChatMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again. 😔",
+          content: "Sorry, I encountered an error. Please try again. 😔\n\nIf this keeps happening, please check your internet connection.",
           timestamp: new Date(),
         },
       ]);
+      
+      Alert.alert(
+        'Error',
+        'Failed to send message. Please check your internet connection and try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -396,7 +403,11 @@ export default function AITutorScreen() {
     console.log('=== EXPLAIN CONCEPT REQUESTED ===');
     console.log('Language:', languageSettings?.preferred_tutoring_language);
 
-    const message = "Can you explain the main concepts I need to focus on?";
+    const language = languageSettings?.preferred_tutoring_language || 'English';
+    const message = language === 'Hindi' || language === 'Hinglish'
+      ? "Kya aap main concepts explain kar sakte hain jo mujhe focus karne hain?"
+      : "Can you explain the main concepts I need to focus on?";
+    
     setInputText(message);
     
     setSessionData(prev => ({
@@ -428,20 +439,31 @@ export default function AITutorScreen() {
     console.log('Language:', languageSettings?.preferred_tutoring_language);
 
     try {
-      const problemPrompt = await buildMultilingualPracticeProblemPrompt(
+      await buildMultilingualPracticeProblemPrompt(
         authUser.id,
         subjectName,
         'Practice Problem'
       );
       
       console.log('✅ Practice problem prompt built');
-      const message = "Can you give me a practice problem to solve? " + 
-                     `Use ${languageSettings?.preferred_tutoring_language} language and ` +
-                     "follow this format:\n" + problemPrompt;
+      
+      const language = languageSettings?.preferred_tutoring_language || 'English';
+      let message = "";
+      
+      if (language === 'Hindi' || language === 'Hinglish') {
+        message = "Kya aap mujhe ek practice problem de sakte hain solve karne ke liye?";
+      } else {
+        message = "Can you give me a practice problem to solve?";
+      }
+      
+      message += `\n\nPlease use ${language} language and provide step-by-step solution.`;
       setInputText(message);
     } catch (error) {
       console.error('❌ Build practice prompt error:', error);
-      const message = "Can you give me a practice problem to solve?";
+      const language = languageSettings?.preferred_tutoring_language || 'English';
+      const message = language === 'Hindi' || language === 'Hinglish'
+        ? "Mujhe ek practice problem dijiye"
+        : "Can you give me a practice problem to solve?";
       setInputText(message);
     }
     
@@ -584,6 +606,12 @@ export default function AITutorScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
+          {agentError && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>⚠️ Connection error. Retrying...</Text>
+            </View>
+          )}
+
           <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
@@ -890,5 +918,18 @@ const styles = StyleSheet.create({
   sendButtonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.95 }],
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#FCA5A5",
+  },
+  errorText: {
+    color: "#DC2626",
+    fontSize: 14,
+    fontWeight: "600" as const,
+    textAlign: "center",
   },
 });
