@@ -225,7 +225,13 @@ export default function ChapterIndexScreen() {
                             pressed && styles.topicItemPressed,
                           ]}
                           onPress={() => {
-                            console.log('Topic tapped:', topic.topic_title);
+                            router.push({
+                              pathname: '/topic-detail',
+                              params: {
+                                topicId: topic.id,
+                                topicTitle: topic.topic_title
+                              }
+                            });
                           }}
                         >
                           <View style={styles.topicNumber}>
