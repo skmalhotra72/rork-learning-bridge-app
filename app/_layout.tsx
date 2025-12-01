@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { UserProvider } from "@/contexts/UserContext";
+import { initOfflineSync } from "@/services/offlineSync";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,6 +15,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="grade-selection" options={{ headerShown: false }} />
@@ -40,6 +42,7 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync();
+    initOfflineSync();
   }, []);
 
   return (
