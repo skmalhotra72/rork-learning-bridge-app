@@ -292,7 +292,7 @@ export default function HomeScreen() {
 
           {cbseSubjectProgress.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Chapter Progress</Text>
+              <Text style={styles.sectionTitle}>📚 Chapter Progress</Text>
               {cbseSubjectProgress.map((subject) => (
                 <SubjectProgressCard
                   key={subject.subject_id}
@@ -307,6 +307,24 @@ export default function HomeScreen() {
                     });
                   }}
                 />
+              ))}
+            </View>
+          )}
+
+          {dashboardData?.recent_activity && dashboardData.recent_activity.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>📊 Recent Activity</Text>
+              {dashboardData.recent_activity.slice(0, 5).map((activity) => (
+                <View key={activity.activity_id} style={styles.activityCard}>
+                  <Text style={styles.activityEmoji}>{activity.icon_emoji}</Text>
+                  <View style={styles.activityInfo}>
+                    <Text style={styles.activityTitle}>{activity.chapter_title}</Text>
+                    <Text style={styles.activitySubject}>{activity.subject_name}</Text>
+                  </View>
+                  <View style={styles.activityBadge}>
+                    <Text style={styles.activityScore}>{activity.completion_percentage}%</Text>
+                  </View>
+                </View>
               ))}
             </View>
           )}
@@ -791,5 +809,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600" as const,
     color: "#FFFFFF",
+  },
+  activityCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  activityEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  activitySubject: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  activityTime: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  activityBadge: {
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  activityScore: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: Colors.primary,
   },
 });
