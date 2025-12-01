@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { View, Text, Modal, Animated, TouchableOpacity, StyleSheet } from 'react-native'
+import * as Haptics from 'expo-haptics'
 
 interface CelebrationData {
   newLevel?: number
@@ -26,6 +27,8 @@ const CelebrationModal: React.FC<CelebrationModalProps> = ({ visible, type, data
 
   useEffect(() => {
     if (visible) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      
       Animated.parallel([
         Animated.spring(scaleAnim, {
           toValue: 1,

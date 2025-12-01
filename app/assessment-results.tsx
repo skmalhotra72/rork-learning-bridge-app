@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,8 +9,10 @@ import {
   StyleSheet,
   Text,
   View,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
@@ -87,12 +89,20 @@ export default function AssessmentResultsScreen() {
     newLevel?: number;
     streakDay: number;
     badgeEarned?: string;
+    badgeEmoji?: string;
+    badgeName?: string;
+    badgeDescription?: string;
   } | null>(null);
   const [celebration, setCelebration] = useState<{
     visible: boolean;
     type: 'level_up' | 'badge' | 'streak' | null;
     data: Record<string, unknown>;
   }>({ visible: false, type: null, data: {} });
+  
+  const rewardCardScale1 = useRef(new Animated.Value(0)).current;
+  const rewardCardScale2 = useRef(new Animated.Value(0)).current;
+  const levelUpScale = useRef(new Animated.Value(0)).current;
+  const badgeScale = useRef(new Animated.Value(0)).current;
 
   const saveAssessment = useCallback(async (
     analysis: GapAnalysis,
@@ -192,9 +202,28 @@ export default function AssessmentResultsScreen() {
       console.log(`✅ Streak updated: ${streakResult.currentStreak} days`);
 
       // Check for badges
-      await checkBadgeEligibility(userId, 'quiz_completed', analysis.score, {
+      const earnedBadgeCodes = await checkBadgeEligibility(userId, 'quiz_completed', analysis.score, {
         subject: subjectName
       });
+      
+      // Get full badge details if any earned
+      let earnedBadgeDetails = null;
+      if (earnedBadgeCodes.length > 0) {
+        const { data: badgeData } = await supabase
+          .from('badges')
+          .select('*')
+          .eq('badge_code', earnedBadgeCodes[0])
+          .single();
+          
+        if (badgeData) {
+          earnedBadgeDetails = {
+            code: badgeData.badge_code,
+            name: badgeData.badge_name,
+            emoji: badgeData.badge_emoji,
+            description: badgeData.badge_description
+          };
+        }
+      }
 
       // Update user stats - get current stats first
       const { data: currentStats, error: statsQueryError } = await supabase
@@ -234,13 +263,17 @@ export default function AssessmentResultsScreen() {
         leveledUp: xpResult.leveledUp || false,
         newLevel: xpResult.newLevel,
         streakDay: streakResult.currentStreak || 0,
-        badgeEarned: streakResult.badgeEarned
+        badgeEarned: earnedBadgeDetails?.name || streakResult.badgeEarned,
+        badgeEmoji: earnedBadgeDetails?.emoji,
+        badgeName: earnedBadgeDetails?.name,
+        badgeDescription: earnedBadgeDetails?.description
       });
 
       console.log("✅ Gamification rewards complete!");
 
       // Show celebration modal for level up
       if (xpResult.leveledUp) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setTimeout(() => {
           setCelebration({
             visible: true,
@@ -248,6 +281,23 @@ export default function AssessmentResultsScreen() {
             data: {
               newLevel: xpResult.newLevel,
               xpEarned: totalXP
+            }
+          });
+        }, 500);
+      }
+      
+      // Show celebration for badge unlock
+      if (earnedBadgeDetails && !xpResult.leveledUp) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => {
+          setCelebration({
+            visible: true,
+            type: 'badge',
+            data: {
+              badgeEmoji: earnedBadgeDetails.emoji,
+              badgeName: earnedBadgeDetails.name,
+              badgeDescription: earnedBadgeDetails.description,
+              xpReward: 0
             }
           });
         }, 500);
@@ -447,6 +497,48 @@ export default function AssessmentResultsScreen() {
   useEffect(() => {
     analyzeResults();
   }, [analyzeResults]);
+  
+  useEffect(() => {
+    if (gamificationData && !loading) {
+      Animated.sequence([
+        Animated.spring(rewardCardScale1, {
+          toValue: 1,
+          delay: 200,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true
+        }),
+        Animated.spring(rewardCardScale2, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true
+        })
+      ]).start();
+      
+      if (gamificationData.leveledUp) {
+        setTimeout(() => {
+          Animated.spring(levelUpScale, {
+            toValue: 1,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true
+          }).start();
+        }, 600);
+      }
+      
+      if (gamificationData.badgeEarned) {
+        setTimeout(() => {
+          Animated.spring(badgeScale, {
+            toValue: 1,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true
+          }).start();
+        }, gamificationData.leveledUp ? 800 : 600);
+      }
+    }
+  }, [gamificationData, loading, rewardCardScale1, rewardCardScale2, levelUpScale, badgeScale]);
 
   const handleStartLearning = () => {
     console.log("Starting learning journey");
@@ -526,35 +618,39 @@ export default function AssessmentResultsScreen() {
               <Text style={styles.rewardsSectionTitle}>🎉 Rewards Earned!</Text>
               
               <View style={styles.rewardsGrid}>
-                <View style={styles.rewardCard}>
+                <Animated.View style={[styles.rewardCard, { transform: [{ scale: rewardCardScale1 }] }]}>
                   <Text style={styles.rewardEmoji}>⭐</Text>
                   <Text style={styles.rewardValue}>+{gamificationData.xpEarned}</Text>
                   <Text style={styles.rewardLabel}>XP Earned</Text>
-                </View>
+                </Animated.View>
 
-                <View style={styles.rewardCard}>
+                <Animated.View style={[styles.rewardCard, { transform: [{ scale: rewardCardScale2 }] }]}>
                   <Text style={styles.rewardEmoji}>🔥</Text>
                   <Text style={styles.rewardValue}>{gamificationData.streakDay}</Text>
                   <Text style={styles.rewardLabel}>Day Streak</Text>
-                </View>
+                </Animated.View>
               </View>
 
               {gamificationData.leveledUp && (
-                <View style={styles.levelUpCard}>
+                <Animated.View style={[styles.levelUpCard, { transform: [{ scale: levelUpScale }] }]}>
                   <Text style={styles.levelUpEmoji}>🎊</Text>
                   <Text style={styles.levelUpText}>
                     Level Up! You&apos;re now Level {gamificationData.newLevel}!
                   </Text>
-                </View>
+                </Animated.View>
               )}
 
               {gamificationData.badgeEarned && (
-                <View style={styles.badgeEarnedCard}>
-                  <Text style={styles.badgeEarnedEmoji}>🏆</Text>
-                  <Text style={styles.badgeEarnedText}>
-                    New badge earned: {gamificationData.badgeEarned}!
-                  </Text>
-                </View>
+                <Animated.View style={[styles.badgeEarnedCard, { transform: [{ scale: badgeScale }] }]}>
+                  <Text style={styles.badgeEarnedEmoji}>{gamificationData.badgeEmoji || '🏆'}</Text>
+                  <View style={styles.badgeEarnedContent}>
+                    <Text style={styles.badgeEarnedTitle}>Badge Unlocked!</Text>
+                    <Text style={styles.badgeEarnedName}>{gamificationData.badgeName || gamificationData.badgeEarned}</Text>
+                    {gamificationData.badgeDescription && (
+                      <Text style={styles.badgeEarnedDescription}>{gamificationData.badgeDescription}</Text>
+                    )}
+                  </View>
+                </Animated.View>
               )}
             </View>
           )}
@@ -979,7 +1075,27 @@ const styles = StyleSheet.create({
     borderColor: Colors.success,
   },
   badgeEarnedEmoji: {
-    fontSize: 32,
+    fontSize: 48,
+  },
+  badgeEarnedContent: {
+    flex: 1,
+  },
+  badgeEarnedTitle: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: Colors.success,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  badgeEarnedName: {
+    fontSize: 18,
+    fontWeight: "bold" as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  badgeEarnedDescription: {
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   badgeEarnedText: {
     flex: 1,
