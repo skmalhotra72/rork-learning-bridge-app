@@ -34,7 +34,21 @@ export default function AssessmentIntroScreen() {
   if (!subjectProgressId || !subjectName) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Subject information missing</Text>
+        <LinearGradient
+          colors={["#EEF2FF", Colors.background]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <Text style={styles.errorText}>Subject information missing</Text>
+            <Pressable
+              style={({ pressed }) => [styles.startButton, pressed && { opacity: 0.8 }]}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.startButtonText}>Go Back</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
       </View>
     );
   }

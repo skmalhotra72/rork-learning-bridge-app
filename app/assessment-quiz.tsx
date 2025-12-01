@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -245,22 +246,26 @@ export default function AssessmentQuizScreen() {
     const currentQuestion = questions[currentQuestionIndex];
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
 
-    setAnswers({
+    const newAnswer = {
+      selected: selectedOption,
+      correct: currentQuestion.correctAnswer,
+      isCorrect: selectedOption === currentQuestion.correctAnswer,
+      timeSpent: timeTaken,
+    };
+
+    const updatedAnswers = {
       ...answers,
-      [currentQuestion.id]: {
-        selected: selectedOption,
-        correct: currentQuestion.correctAnswer,
-        isCorrect: selectedOption === currentQuestion.correctAnswer,
-        timeSpent: timeTaken,
-      },
-    });
+      [currentQuestion.id]: newAnswer,
+    };
+
+    setAnswers(updatedAnswers);
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setSelectedOption(null);
       setQuestionStartTime(Date.now());
     } else {
-      finishAssessment();
+      finishAssessment(updatedAnswers);
     }
   };
 
@@ -268,36 +273,48 @@ export default function AssessmentQuizScreen() {
     const currentQuestion = questions[currentQuestionIndex];
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
 
-    setAnswers({
+    const newAnswer = {
+      selected: null,
+      correct: currentQuestion.correctAnswer,
+      isCorrect: false,
+      timeSpent: timeTaken,
+      skipped: true,
+    };
+
+    const updatedAnswers = {
       ...answers,
-      [currentQuestion.id]: {
-        selected: null,
-        correct: currentQuestion.correctAnswer,
-        isCorrect: false,
-        timeSpent: timeTaken,
-        skipped: true,
-      },
-    });
+      [currentQuestion.id]: newAnswer,
+    };
+
+    setAnswers(updatedAnswers);
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setSelectedOption(null);
       setQuestionStartTime(Date.now());
     } else {
-      finishAssessment();
+      finishAssessment(updatedAnswers);
     }
   };
 
-  const finishAssessment = () => {
+  const finishAssessment = (finalAnswers: Record<string, Answer>) => {
     console.log("=== FINISHING ASSESSMENT ===");
     console.log("Subject Progress ID being passed:", subjectProgressId);
     console.log("Subject Name:", subjectName);
     console.log("Total questions:", questions.length);
-    console.log("Total answers:", Object.keys(answers).length);
+    console.log("Total answers:", Object.keys(finalAnswers).length);
 
     if (!subjectProgressId) {
       console.error("No subject progress ID available");
+      Alert.alert("Error", "Missing subject information. Please try again.");
+      router.back();
       return;
+    }
+
+    if (Object.keys(finalAnswers).length !== questions.length) {
+      console.error("Answer count mismatch!");
+      console.error("Questions:", questions.length);
+      console.error("Answers:", Object.keys(finalAnswers).length);
     }
     
     router.push({
@@ -306,7 +323,7 @@ export default function AssessmentQuizScreen() {
         subjectProgressId,
         subjectName,
         questionsData: JSON.stringify(questions),
-        answersData: JSON.stringify(answers),
+        answersData: JSON.stringify(finalAnswers),
       },
     });
   };

@@ -197,22 +197,30 @@ export default function AssessmentResultsScreen() {
       });
 
       // Update user stats - get current stats first
-      const { data: currentStats } = await supabase
+      const { data: currentStats, error: statsQueryError } = await supabase
         .from('user_stats')
         .select('total_quizzes, perfect_quizzes')
         .eq('user_id', userId)
         .single();
 
+      if (statsQueryError && statsQueryError.code !== 'PGRST116') {
+        console.error('Stats query error:', statsQueryError);
+      }
+
       const totalQuizzes = (currentStats?.total_quizzes || 0) + 1;
       const perfectQuizzes = (currentStats?.perfect_quizzes || 0) + (analysis.score === 100 ? 1 : 0);
 
+      // Use upsert to handle both insert and update
       const { error: statsError } = await supabase
         .from('user_stats')
-        .update({
+        .upsert({
+          user_id: userId,
           total_quizzes: totalQuizzes,
-          perfect_quizzes: perfectQuizzes
-        })
-        .eq('user_id', userId);
+          perfect_quizzes: perfectQuizzes,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (statsError) {
         console.error('Stats update error:', statsError);
