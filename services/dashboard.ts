@@ -144,7 +144,6 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
       .from('student_chapter_progress')
       .select(`
         chapter_id,
-        marked_completed,
         marked_difficult,
         last_studied,
         cbse_chapters(
