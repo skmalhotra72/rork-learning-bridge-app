@@ -274,7 +274,7 @@ export default function AITutorScreen() {
             authUser.id,
             sessionXP,
             `Completed ${Math.floor(duration / 60)} minute learning session`,
-            'tutoring',
+            'concept_mastery',
             subjectName
           );
           console.log(`✅ Awarded ${sessionXP} XP for session completion`);
@@ -369,7 +369,7 @@ export default function AITutorScreen() {
         authUser.id,
         5,
         `Asked question about ${subjectName}`,
-        'tutoring',
+        'concept_mastery',
         subjectName
       );
 
@@ -410,7 +410,7 @@ export default function AITutorScreen() {
       authUser.id,
       20,
       `Learned about ${subjectName} concepts`,
-      'tutoring',
+      'concept_mastery',
       subjectName,
       'Main Concepts'
     );
