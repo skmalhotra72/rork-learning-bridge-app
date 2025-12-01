@@ -13,8 +13,11 @@ import {
   Shield,
   FileText,
   Users,
+  Lock,
+  Trash2,
+  Download,
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Modal,
@@ -24,6 +27,7 @@ import {
   Text,
   View,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -31,12 +35,147 @@ import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { generateParentInvitation } from "@/services/parentPortal";
 import { APP_VERSION, BUILD_NUMBER, APP_CONFIG, APP_LINKS } from "@/constants/appConfig";
+import { supabase } from "@/lib/supabase";
 
 export default function ProfileScreen() {
   const { user, authUser, logout } = useUser();
   const [menuVisible, setMenuVisible] = useState(false);
   const [invitationCode, setInvitationCode] = useState<string | null>(null);
   const [loadingCode, setLoadingCode] = useState(false);
+  const [privacySettings, setPrivacySettings] = useState({
+    shareProgress: true,
+    allowParentAccess: true,
+    dataCollection: true,
+  });
+
+  useEffect(() => {
+    loadPrivacySettings();
+  }, [authUser]);
+
+  const loadPrivacySettings = async () => {
+    if (!authUser) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("notification_preferences")
+        .eq("id", authUser.id)
+        .single();
+
+      if (error) {
+        console.error("Error loading privacy settings:", error);
+        return;
+      }
+
+      if (data?.notification_preferences) {
+        setPrivacySettings(data.notification_preferences as typeof privacySettings);
+      }
+    } catch (error) {
+      console.error("Privacy settings exception:", error);
+    }
+  };
+
+  const updatePrivacySetting = async (key: keyof typeof privacySettings, value: boolean) => {
+    if (!authUser) return;
+
+    setPrivacySettings((prev) => ({ ...prev, [key]: value }));
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          notification_preferences: {
+            ...privacySettings,
+            [key]: value,
+          },
+        })
+        .eq("id", authUser.id);
+
+      if (error) {
+        console.error("Error updating privacy setting:", error);
+        setPrivacySettings((prev) => ({ ...prev, [key]: !value }));
+        Alert.alert("Error", "Failed to update privacy setting");
+      }
+    } catch (error) {
+      console.error("Update privacy setting exception:", error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!authUser) return;
+
+            try {
+              const { error } = await supabase.auth.admin.deleteUser(authUser.id);
+
+              if (error) {
+                Alert.alert("Error", "Failed to delete account. Please contact support.");
+                return;
+              }
+
+              Alert.alert("Success", "Your account has been deleted.");
+              logout();
+            } catch (error) {
+              console.error("Delete account error:", error);
+              Alert.alert("Error", "An unexpected error occurred");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleExportData = async () => {
+    if (!authUser) return;
+
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single();
+
+      const { data: subjectProgress } = await supabase
+        .from("subject_progress")
+        .select("*")
+        .eq("user_id", authUser.id);
+
+      const { data: userStats } = await supabase
+        .from("user_stats")
+        .select("*")
+        .eq("user_id", authUser.id)
+        .single();
+
+      const exportData = {
+        profile,
+        subjectProgress,
+        userStats,
+        exportedAt: new Date().toISOString(),
+      };
+
+      Alert.alert(
+        "Data Export",
+        "Your data has been prepared for export. In a full implementation, this would download a JSON file.",
+        [
+          {
+            text: "OK",
+            onPress: () => console.log("Export data:", JSON.stringify(exportData, null, 2)),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Export data error:", error);
+      Alert.alert("Error", "Failed to export data");
+    }
+  };
 
   if (!user || !authUser) return null;
 
@@ -274,6 +413,150 @@ export default function ProfileScreen() {
                 </View>
               </Pressable>
             )}
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionHeader}>🔒 Privacy & Security</Text>
+              <Text style={styles.sectionDescription}>
+                Control your data and privacy settings
+              </Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.optionLeft}>
+                  <View
+                    style={[
+                      styles.optionIconContainer,
+                      { backgroundColor: "#DBEAFE" },
+                    ]}
+                  >
+                    <Shield size={20} color={Colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Share Progress</Text>
+                    <Text style={styles.settingHint}>
+                      Allow sharing achievements with friends
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={privacySettings.shareProgress}
+                onValueChange={(val) => updatePrivacySetting("shareProgress", val)}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.optionLeft}>
+                  <View
+                    style={[
+                      styles.optionIconContainer,
+                      { backgroundColor: "#E0E7FF" },
+                    ]}
+                  >
+                    <Users size={20} color={Colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Parent Access</Text>
+                    <Text style={styles.settingHint}>
+                      Allow parents to view your progress
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={privacySettings.allowParentAccess}
+                onValueChange={(val) => updatePrivacySetting("allowParentAccess", val)}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+              <View style={styles.settingInfo}>
+                <View style={styles.optionLeft}>
+                  <View
+                    style={[
+                      styles.optionIconContainer,
+                      { backgroundColor: "#FEF3C7" },
+                    ]}
+                  >
+                    <Lock size={20} color={Colors.accent} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Analytics</Text>
+                    <Text style={styles.settingHint}>
+                      Help improve app with usage data
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={privacySettings.dataCollection}
+                onValueChange={(val) => updatePrivacySetting("dataCollection", val)}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionHeader}>Data Management</Text>
+              <Text style={styles.sectionDescription}>
+                Manage your personal data
+              </Text>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.optionItem,
+                pressed && styles.optionItemPressed,
+              ]}
+              onPress={handleExportData}
+            >
+              <View style={styles.optionLeft}>
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    { backgroundColor: "#D1FAE5" },
+                  ]}
+                >
+                  <Download size={20} color={Colors.secondary} />
+                </View>
+                <Text style={styles.optionText}>Export My Data</Text>
+              </View>
+              <ChevronRight size={20} color={Colors.textSecondary} />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.optionItem,
+                pressed && styles.optionItemPressed,
+                { borderBottomWidth: 0 },
+              ]}
+              onPress={handleDeleteAccount}
+            >
+              <View style={styles.optionLeft}>
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    { backgroundColor: "#FEE2E2" },
+                  ]}
+                >
+                  <Trash2 size={20} color={Colors.error} />
+                </View>
+                <Text style={[styles.optionText, { color: Colors.error }]}>
+                  Delete Account
+                </Text>
+              </View>
+              <ChevronRight size={20} color={Colors.error} />
+            </Pressable>
           </View>
 
           <View style={styles.section}>
@@ -737,5 +1020,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  settingRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: "500" as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  settingHint: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    flexWrap: "wrap" as const,
   },
 });
