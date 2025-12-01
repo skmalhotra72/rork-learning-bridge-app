@@ -298,6 +298,24 @@ export default function HomeScreen() {
               and create a personalized learning path!
             </Text>
           </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.testButton,
+              pressed && styles.testButtonPressed,
+            ]}
+            onPress={() =>
+              router.push({
+                pathname: "/chapter-index",
+                params: {
+                  subjectCode: "MATH",
+                  gradeNumber: user.grade,
+                },
+              })
+            }
+          >
+            <Text style={styles.testButtonText}>📚 View Mathematics Curriculum</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
 
@@ -624,5 +642,27 @@ const styles = StyleSheet.create({
   },
   closeText: {
     color: Colors.textSecondary,
+  },
+  testButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginTop: 24,
+    alignItems: "center",
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  testButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  testButtonText: {
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: "#FFFFFF",
   },
 });
