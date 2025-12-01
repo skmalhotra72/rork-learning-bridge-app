@@ -92,9 +92,9 @@ export const getDashboardData = async (userId: string): Promise<CompleteDashboar
     const progress = progressData || [];
 
     const completed = progress.filter(p => p.marked_completed).length;
-    const inProgress = progress.filter(p => !p.marked_completed && p.study_time_minutes > 0).length;
+    const inProgress = progress.filter(p => !p.marked_completed && p.last_studied).length;
     const mastered = progress.filter(p => (p.confidence_level || 0) >= 80).length;
-    const totalStudyMinutes = progress.reduce((sum, p) => sum + (p.study_time_minutes || 0), 0);
+    const totalStudyMinutes = 0;
 
     const stats: DashboardStats = {
       total_chapters: progress.length,
@@ -133,7 +133,7 @@ export const getDashboardData = async (userId: string): Promise<CompleteDashboar
       const subj = subjectMap.get(subject.id);
       subj.total_chapters++;
       if (p.marked_completed) subj.completed_chapters++;
-      if (!p.marked_completed && p.study_time_minutes > 0) subj.in_progress_chapters++;
+      if (!p.marked_completed && p.last_studied) subj.in_progress_chapters++;
       if (p.marked_difficult) subj.difficult_chapters_count++;
       subj.total_confidence += p.confidence_level || 0;
       if (!subj.last_studied_at || (p.last_studied && p.last_studied > subj.last_studied_at)) {
@@ -168,9 +168,9 @@ export const getDashboardData = async (userId: string): Promise<CompleteDashboar
         subject_code: p.chapter?.book?.subject?.subject_code || '',
         icon_emoji: p.chapter?.book?.subject?.icon_emoji || '📚',
         activity_type: 'study' as const,
-        completion_percentage: p.marked_completed ? 100 : Math.min(Math.round((p.study_time_minutes / 60) * 25), 90),
+        completion_percentage: p.marked_completed ? 100 : (p.confidence_level || 0),
         mastery_score: p.confidence_level,
-        time_spent_minutes: p.study_time_minutes,
+        time_spent_minutes: 0,
         last_studied_at: p.last_studied,
       }));
 
@@ -326,7 +326,7 @@ export const getTodayStudySummary = async (userId: string): Promise<TodayStudySu
     const { data, error } = await supabase
       .from('student_chapter_progress')
       .select(`
-        study_time_minutes,
+        chapter_id,
         chapter:cbse_chapters!student_chapter_progress_chapter_id_fkey(chapter_title)
       `)
       .eq('user_id', userId)
@@ -334,7 +334,7 @@ export const getTodayStudySummary = async (userId: string): Promise<TodayStudySu
 
     if (error) throw error;
 
-    const totalTime = (data || []).reduce((sum, item: any) => sum + (item.study_time_minutes || 0), 0);
+    const totalTime = 0;
     const chaptersStudied = (data || []).length;
 
     return {
@@ -359,7 +359,6 @@ export interface ProgressUpdate {
   marked_completed?: boolean;
   marked_difficult?: boolean;
   confidence_level?: number;
-  study_time_minutes?: number;
 }
 
 export const quickProgressUpdate = async (
