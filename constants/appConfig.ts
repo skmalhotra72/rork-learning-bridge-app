@@ -10,7 +10,11 @@ export const APP_CONFIG = {
   website: 'https://buddylearning.com',
   supportEmail: 'support@buddylearning.com',
   privacyEmail: 'privacy@buddylearning.com',
-  legalEmail: 'legal@buddylearning.com'
+  legalEmail: 'legal@buddylearning.com',
+  
+  ENV: __DEV__ ? 'development' : 'production',
+  ENABLE_ANALYTICS: !__DEV__,
+  ENABLE_CRASH_REPORTING: !__DEV__
 } as const;
 
 export const FEATURES = {
@@ -33,7 +37,11 @@ export const LIMITS = {
     dailyQuestions: -1,
     assessmentsPerDay: -1,
     practiceProblemsPerDay: -1
-  }
+  },
+  maxQuestionsPerDay: 100,
+  maxUploadSizeMB: 10,
+  cacheExpiryHours: 24,
+  maxOfflineActions: 50
 } as const;
 
 export const SUPPORTED_LANGUAGES = [
@@ -94,3 +102,20 @@ export const SOCIAL_LINKS = {
   instagram: 'https://instagram.com/buddylearning',
   youtube: 'https://youtube.com/buddylearning'
 } as const;
+
+export const isFeatureEnabled = (feature: keyof typeof FEATURES): boolean => {
+  return FEATURES[feature] === true;
+};
+
+export const getAppInfo = () => ({
+  version: APP_VERSION,
+  buildNumber: BUILD_NUMBER,
+  environment: APP_CONFIG.ENV,
+  name: APP_CONFIG.name,
+  shortName: APP_CONFIG.shortName
+});
+
+export type AppFeature = keyof typeof FEATURES;
+export type AppLanguage = typeof SUPPORTED_LANGUAGES[number]['code'];
+export type AppSubject = typeof SUBJECTS[number]['id'];
+export type AppGrade = typeof GRADES[number]['value'];

@@ -1,13 +1,17 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import * as Linking from "expo-linking";
 import {
   Bell,
   ChevronRight,
+  ExternalLink,
   HelpCircle,
-  Info,
   LogOut,
+  Mail,
   Menu,
   Settings,
+  Shield,
+  FileText,
   Users,
 } from "lucide-react-native";
 import React, { useState } from "react";
@@ -26,6 +30,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { generateParentInvitation } from "@/services/parentPortal";
+import { APP_VERSION, BUILD_NUMBER, APP_CONFIG, APP_LINKS } from "@/constants/appConfig";
 
 export default function ProfileScreen() {
   const { user, authUser, logout } = useUser();
@@ -48,6 +53,24 @@ export default function ProfileScreen() {
 
   const handleOptionPress = (option: string) => {
     Alert.alert(option, `${option} feature coming soon!`);
+  };
+
+  const handleOpenLink = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "Cannot open this link");
+      }
+    } catch (error) {
+      console.error("Error opening link:", error);
+      Alert.alert("Error", "Failed to open link");
+    }
+  };
+
+  const handleContactSupport = () => {
+    handleOpenLink(`mailto:${APP_CONFIG.supportEmail}?subject=Support Request`);
   };
 
   const handleGenerateCode = async () => {
@@ -254,12 +277,32 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionHeader}>App Information</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Version</Text>
+              <Text style={styles.infoValue}>{APP_VERSION} ({BUILD_NUMBER})</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Environment</Text>
+              <Text style={styles.infoValue}>{APP_CONFIG.ENV}</Text>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionHeader}>Support & Legal</Text>
+            </View>
+
             <Pressable
               style={({ pressed }) => [
                 styles.optionItem,
                 pressed && styles.optionItemPressed,
               ]}
-              onPress={() => handleOptionPress("Help & Support")}
+              onPress={handleContactSupport}
             >
               <View style={styles.optionLeft}>
                 <View
@@ -268,11 +311,11 @@ export default function ProfileScreen() {
                     { backgroundColor: "#D1FAE5" },
                   ]}
                 >
-                  <HelpCircle size={20} color={Colors.secondary} />
+                  <Mail size={20} color={Colors.secondary} />
                 </View>
-                <Text style={styles.optionText}>Help & Support</Text>
+                <Text style={styles.optionText}>Contact Support</Text>
               </View>
-              <ChevronRight size={20} color={Colors.textSecondary} />
+              <ExternalLink size={16} color={Colors.textSecondary} />
             </Pressable>
 
             <Pressable
@@ -280,7 +323,7 @@ export default function ProfileScreen() {
                 styles.optionItem,
                 pressed && styles.optionItemPressed,
               ]}
-              onPress={() => handleOptionPress("About Learning Bridge")}
+              onPress={() => handleOpenLink(APP_LINKS.privacy)}
             >
               <View style={styles.optionLeft}>
                 <View
@@ -289,11 +332,53 @@ export default function ProfileScreen() {
                     { backgroundColor: "#E0E7FF" },
                   ]}
                 >
-                  <Info size={20} color={Colors.primary} />
+                  <Shield size={20} color={Colors.primary} />
                 </View>
-                <Text style={styles.optionText}>About Learning Bridge</Text>
+                <Text style={styles.optionText}>Privacy Policy</Text>
               </View>
-              <ChevronRight size={20} color={Colors.textSecondary} />
+              <ExternalLink size={16} color={Colors.textSecondary} />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.optionItem,
+                pressed && styles.optionItemPressed,
+              ]}
+              onPress={() => handleOpenLink(APP_LINKS.terms)}
+            >
+              <View style={styles.optionLeft}>
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    { backgroundColor: "#FEE2E2" },
+                  ]}
+                >
+                  <FileText size={20} color={Colors.error} />
+                </View>
+                <Text style={styles.optionText}>Terms of Service</Text>
+              </View>
+              <ExternalLink size={16} color={Colors.textSecondary} />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.optionItem,
+                pressed && styles.optionItemPressed,
+              ]}
+              onPress={() => handleOpenLink(APP_LINKS.faq)}
+            >
+              <View style={styles.optionLeft}>
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    { backgroundColor: "#FEF3C7" },
+                  ]}
+                >
+                  <HelpCircle size={20} color={Colors.accent} />
+                </View>
+                <Text style={styles.optionText}>FAQ & Help Center</Text>
+              </View>
+              <ExternalLink size={16} color={Colors.textSecondary} />
             </Pressable>
           </View>
 
@@ -323,7 +408,8 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Learning Bridge v1.0.0</Text>
+            <Text style={styles.versionText}>{APP_CONFIG.shortName} v{APP_VERSION}</Text>
+            <Text style={styles.copyrightText}>© 2025 Learning Bridge. All rights reserved.</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -627,5 +713,29 @@ const styles = StyleSheet.create({
   },
   closeText: {
     color: Colors.textSecondary,
+  },
+  infoRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: "500" as const,
+  },
+  infoValue: {
+    fontSize: 14,
+    color: Colors.text,
+    fontWeight: "600" as const,
+  },
+  copyrightText: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
 });
