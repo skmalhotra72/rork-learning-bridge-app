@@ -1,6 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as Linking from "expo-linking";
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import {
   Bell,
   ChevronRight,
@@ -224,14 +226,16 @@ export default function ProfileScreen() {
 
       if (result.success && result.invitationCode) {
         setInvitationCode(result.invitationCode);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           "Code Generated! 📱",
           `Share this code with your parent:\n\n${result.invitationCode}\n\nThis code is valid for one use only.`,
           [
             {
               text: "Copy Code",
-              onPress: () => {
-                // Could implement clipboard copy here
+              onPress: async () => {
+                await Clipboard.setStringAsync(result.invitationCode!);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 Alert.alert("Copied!", "Code copied to clipboard");
               },
             },

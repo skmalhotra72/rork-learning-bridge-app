@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 
 import { useUser } from '@/contexts/UserContext';
@@ -35,6 +36,7 @@ const CreateGoalScreen = () => {
   const [targetDeadline, setTargetDeadline] = useState('');
   const [reminderFrequency, setReminderFrequency] = useState('weekly');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const goalTypes: GoalType[] = [
     { value: 'xp_target', label: 'Earn XP Points', emoji: '⭐', unit: 'XP' },
@@ -47,26 +49,35 @@ const CreateGoalScreen = () => {
 
   const selectedGoalType = goalTypes.find((t) => t.value === goalType);
 
-  const handleCreate = async () => {
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+
     if (!goalTitle.trim()) {
-      Alert.alert('Error', 'Please enter a goal title');
-      return;
+      newErrors.goalTitle = 'Please enter a goal title';
     }
 
     if (!targetValue || parseInt(targetValue) <= 0) {
-      Alert.alert('Error', 'Please enter a valid target value');
-      return;
+      newErrors.targetValue = 'Please enter a valid target value';
     }
 
     if (!authUser?.id || !childId) {
-      Alert.alert('Error', 'Missing user information');
+      newErrors.general = 'Missing user information';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleCreate = async () => {
+    if (!validateForm()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
     setLoading(true);
 
     try {
-      const result = await createParentGoal(authUser.id, childId, {
+      const result = await createParentGoal(authUser!.id, childId, {
         goalTitle: goalTitle.trim(),
         goalDescription: goalDescription.trim(),
         goalType: goalType,
@@ -77,6 +88,7 @@ const CreateGoalScreen = () => {
       });
 
       if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('Goal Created! 🎯', 'Your child can now see this goal and work towards it!', [
           {
             text: 'OK',
@@ -84,10 +96,12 @@ const CreateGoalScreen = () => {
           },
         ]);
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('Error', 'Failed to create goal. Please try again.');
       }
     } catch (error) {
       console.error('Create goal error:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'Failed to create goal.');
     } finally {
       setLoading(false);
@@ -138,24 +152,32 @@ const CreateGoalScreen = () => {
           <View style={styles.section}>
             <Text style={styles.label}>Goal Title *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.goalTitle && styles.inputError]}
               placeholder="e.g., Earn 500 XP this week"
               value={goalTitle}
-              onChangeText={setGoalTitle}
+              onChangeText={(text) => {
+                setGoalTitle(text);
+                if (errors.goalTitle) setErrors(prev => ({...prev, goalTitle: ''}));
+              }}
               editable={!loading}
             />
+            {errors.goalTitle && <Text style={styles.errorText}>{errors.goalTitle}</Text>}
           </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Target ({selectedGoalType?.unit}) *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.targetValue && styles.inputError]}
               placeholder={`Enter target ${selectedGoalType?.unit}`}
               value={targetValue}
-              onChangeText={setTargetValue}
+              onChangeText={(text) => {
+                setTargetValue(text);
+                if (errors.targetValue) setErrors(prev => ({...prev, targetValue: ''}));
+              }}
               keyboardType="numeric"
               editable={!loading}
             />
+            {errors.targetValue && <Text style={styles.errorText}>{errors.targetValue}</Text>}
           </View>
 
           {(goalType === 'subject_mastery' || goalType === 'concepts_mastery') && (
@@ -343,6 +365,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 
 import { useUser } from '@/contexts/UserContext';
@@ -20,9 +22,31 @@ export default function AddChildScreen() {
 
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    if (success) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [success, fadeAnim, scaleAnim]);
 
   const handleSubmit = async () => {
     if (!invitationCode.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'Please enter an invitation code');
       return;
     }
@@ -36,13 +60,18 @@ export default function AddChildScreen() {
       );
 
       if (result.success) {
-        Alert.alert('Success! 🎉', 'Child added successfully!', [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setSuccess(true);
+        setTimeout(() => {
+          Alert.alert('Success! 🎉', 'Child added successfully!', [
+            {
+              text: 'OK',
+              onPress: () => router.back(),
+            },
+          ]);
+        }, 1000);
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           'Invalid Code',
           'The invitation code is invalid or has already been used. Please ask your child to generate a new code.'
@@ -50,6 +79,7 @@ export default function AddChildScreen() {
       }
     } catch (error) {
       console.error('Add child error:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'Failed to add child. Please try again.');
     } finally {
       setLoading(false);
@@ -61,6 +91,20 @@ export default function AddChildScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {success && (
+        <Animated.View 
+          style={[
+            styles.successOverlay,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}
+        >
+          <Text style={styles.successEmoji}>🎉</Text>
+          <Text style={styles.successText}>Connected!</Text>
+        </Animated.View>
+      )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backButton}>← Back</Text>
@@ -142,7 +186,7 @@ const styles = StyleSheet.create({
   backButton: {
     fontSize: 16,
     color: '#4F46E5',
-    fontWeight: '600',
+    fontWeight: '600' as const,
   },
   content: {
     flex: 1,
@@ -156,14 +200,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: '#111827',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
     color: '#6B7280',
-    textAlign: 'center',
+    textAlign: 'center' as const,
     marginBottom: 32,
   },
   inputSection: {
@@ -172,7 +216,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: '#111827',
     marginBottom: 8,
   },
@@ -183,15 +227,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: '600' as const,
+    textAlign: 'center' as const,
     letterSpacing: 2,
   },
   inputHint: {
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
   instructionsCard: {
     backgroundColor: '#FFFFFF',
@@ -204,24 +248,24 @@ const styles = StyleSheet.create({
   },
   instructionsTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: '#111827',
     marginBottom: 16,
   },
   instructionStep: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     marginBottom: 12,
-    alignItems: 'flex-start',
+    alignItems: 'flex-start' as const,
   },
   stepNumber: {
     width: 24,
     height: 24,
     backgroundColor: '#EEF2FF',
     borderRadius: 12,
-    textAlign: 'center',
+    textAlign: 'center' as const,
     lineHeight: 24,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: '#4F46E5',
     marginRight: 12,
   },
@@ -236,7 +280,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   submitButtonDisabled: {
     opacity: 0.5,
@@ -244,6 +288,26 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '600' as const,
+  },
+  successOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(79, 70, 229, 0.95)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 1000,
+  },
+  successEmoji: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  successText: {
+    fontSize: 32,
+    fontWeight: 'bold' as const,
+    color: '#FFFFFF',
   },
 });

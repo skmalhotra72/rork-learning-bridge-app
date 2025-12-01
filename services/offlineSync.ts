@@ -67,8 +67,8 @@ export const getPendingActions = async (): Promise<PendingAction[]> => {
   }
 };
 
-// Sync pending actions
-export const syncPendingActions = async (): Promise<{ success: boolean; synced: number; failed: number; reason?: string }> => {
+// Sync pending actions with retry logic
+export const syncPendingActions = async (maxRetries: number = 3): Promise<{ success: boolean; synced: number; failed: number; reason?: string }> => {
   try {
     const online = await checkConnection();
     if (!online) {
@@ -87,19 +87,34 @@ export const syncPendingActions = async (): Promise<{ success: boolean; synced: 
     const failed: PendingAction[] = [];
 
     for (const action of pending) {
-      try {
-        await executeAction(action);
-        synced++;
-      } catch (error) {
-        console.error('Action sync failed:', action.type, error);
-        failed.push(action);
+      let retries = 0;
+      let actionSuccess = false;
+
+      while (retries < maxRetries && !actionSuccess) {
+        try {
+          await executeAction(action);
+          synced++;
+          actionSuccess = true;
+          console.log(`✅ Synced action: ${action.type}`);
+        } catch (error) {
+          retries++;
+          console.error(`Action sync failed (attempt ${retries}/${maxRetries}):`, action.type, error);
+          
+          if (retries < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+          } else {
+            failed.push(action);
+          }
+        }
       }
     }
 
-    // Keep only failed actions
     await AsyncStorage.setItem(PENDING_ACTIONS_KEY, JSON.stringify(failed));
 
     console.log(`✅ Synced ${synced}/${pending.length} actions`);
+    if (failed.length > 0) {
+      console.log(`⚠️ ${failed.length} actions will retry later`);
+    }
 
     return { success: true, synced, failed: failed.length };
   } catch (error) {
@@ -108,31 +123,47 @@ export const syncPendingActions = async (): Promise<{ success: boolean; synced: 
   }
 };
 
-// Execute queued action
+// Execute queued action with error handling
 const executeAction = async (action: PendingAction): Promise<void> => {
-  switch (action.type) {
-    case 'add_xp':
-      await supabase.rpc('add_xp_to_user', action.data);
-      break;
-    
-    case 'save_learning_session':
-      await supabase.from('learning_history').insert(action.data);
-      break;
-    
-    case 'update_streak':
-      await supabase.rpc('update_learning_streak', action.data);
-      break;
-    
-    case 'save_assessment':
-      await supabase.from('assessments').insert(action.data);
-      break;
+  try {
+    switch (action.type) {
+      case 'add_xp': {
+        const { error } = await supabase.rpc('add_xp_to_user', action.data);
+        if (error) throw error;
+        break;
+      }
+      
+      case 'save_learning_session': {
+        const { error } = await supabase.from('learning_history').insert(action.data);
+        if (error) throw error;
+        break;
+      }
+      
+      case 'update_streak': {
+        const { error } = await supabase.rpc('update_learning_streak', action.data);
+        if (error) throw error;
+        break;
+      }
+      
+      case 'save_assessment': {
+        const { error } = await supabase.from('assessments').insert(action.data);
+        if (error) throw error;
+        break;
+      }
 
-    case 'save_xp_transaction':
-      await supabase.from('xp_transactions').insert(action.data);
-      break;
-    
-    default:
-      console.warn('Unknown action type:', action.type);
+      case 'save_xp_transaction': {
+        const { error } = await supabase.from('xp_transactions').insert(action.data);
+        if (error) throw error;
+        break;
+      }
+      
+      default:
+        console.warn('Unknown action type:', action.type);
+        throw new Error(`Unknown action type: ${action.type}`);
+    }
+  } catch (error) {
+    console.error(`Failed to execute action ${action.type}:`, error);
+    throw error;
   }
 };
 

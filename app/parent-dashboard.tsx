@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Calendar, TrendingUp, Target, Award, BookOpen, Clock } from 'lucide-react-native';
 
@@ -84,11 +85,13 @@ export default function ParentDashboardScreen() {
   }, [selectedChild, loadChildData]);
 
   const handleRefresh = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
     await loadParentData();
     if (selectedChild?.child?.id) {
       await loadChildData(selectedChild.child.id);
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setRefreshing(false);
   };
 
@@ -332,7 +335,10 @@ export default function ParentDashboardScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => selectedChild?.child?.id && router.push(`/create-goal?childId=${selectedChild.child.id}`)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              selectedChild?.child?.id && router.push(`/create-goal?childId=${selectedChild.child.id}`);
+            }}
           >
             <Target size={20} color="#4F46E5" />
             <Text style={styles.actionButtonText}>Set Goals</Text>
@@ -340,7 +346,10 @@ export default function ParentDashboardScreen() {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => Alert.alert('Coming Soon', 'Rewards feature will be available in the next update.')}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              Alert.alert('Coming Soon', 'Rewards feature will be available in the next update.');
+            }}
           >
             <Award size={20} color="#4F46E5" />
             <Text style={styles.actionButtonText}>Create Rewards</Text>
