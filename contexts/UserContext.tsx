@@ -6,7 +6,7 @@ import { Alert } from "react-native";
 
 import type { Grade, SubjectDetails, SubjectType, UserProfile } from "@/constants/types";
 import type { Profile, SubjectProgress, UserStats } from "@/lib/supabase";
-import { supabase } from "@/lib/supabase";
+import { supabase, testConnection } from "@/lib/supabase";
 
 export const [UserProvider, useUser] = createContextHook(() => {
   const router = useRouter();
@@ -15,13 +15,31 @@ export const [UserProvider, useUser] = createContextHook(() => {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
     const initialize = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Initializing app...');
+        
+        const connectionTest = await testConnection();
+        if (!connectionTest.success) {
+          console.error('Connection test failed:', connectionTest.error);
+          setConnectionError(connectionTest.error || 'Unable to connect to server');
+          if (mounted) setIsLoading(false);
+          return;
+        }
+        
+        console.log('Connection test passed, getting session...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setConnectionError(sessionError.message);
+        }
+        
         if (!mounted) return;
         
         setSession(session);
@@ -32,6 +50,8 @@ export const [UserProvider, useUser] = createContextHook(() => {
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to initialize';
+        setConnectionError(errorMessage);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -517,6 +537,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
     authUser,
     session,
     stats,
+    connectionError,
     signup,
     login,
     logout,

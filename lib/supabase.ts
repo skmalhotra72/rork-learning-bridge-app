@@ -9,7 +9,38 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: false,
   },
+  global: {
+    headers: {
+      'x-client-info': 'buddy-learning-app/1.0.0',
+    },
+  },
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 2,
+    },
+  },
 });
+
+export const testConnection = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase.from('profiles').select('id').limit(1);
+    if (error) {
+      console.error('Supabase connection test failed:', error);
+      return { success: false, error: error.message };
+    }
+    console.log('✓ Supabase connection successful');
+    return { success: true };
+  } catch (error) {
+    console.error('Supabase connection test error:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown connection error' 
+    };
+  }
+};
 
 export interface Profile {
   id: string;
