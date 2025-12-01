@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useRorkAgent } from "@rork-ai/toolkit-sdk";
+import { sendAIMessage } from "@/services/aiService";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { getTutorInfo, getTutorGreeting } from "@/constants/tutorNames";
@@ -72,44 +72,8 @@ export default function AITutorScreen() {
   const [languageSettings, setLanguageSettings] = useState<LanguageSettings | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string>('');
 
-  const { messages, sendMessage, error: agentError } = useRorkAgent({
-    tools: {},
-  });
-
-  useEffect(() => {
-    const newMessages = messages
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => {
-        const textContent =
-          m.parts
-            ?.filter((p) => p.type === "text")
-            .map((p) => (p as any).text)
-            .join("\n") || "";
-
-        return {
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          content: textContent,
-          timestamp: new Date(),
-        };
-      });
-
-    if (newMessages.length > 0) {
-      setChatMessages((prev) => {
-        const existingIds = new Set(prev.map((msg) => msg.id));
-        const uniqueNew = newMessages.filter((msg) => !existingIds.has(msg.id));
-        const combined = [...prev, ...uniqueNew];
-        
-        if (combined.length > MAX_MESSAGES) {
-          const initialMessage = combined[0];
-          const recentMessages = combined.slice(-MAX_MESSAGES + 1);
-          return [initialMessage, ...recentMessages];
-        }
-        
-        return combined;
-      });
-    }
-  }, [messages, MAX_MESSAGES]);
+  const [isAIResponding, setIsAIResponding] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -343,6 +307,17 @@ export default function AITutorScreen() {
     const imageCopy = selectedImage;
     setInputText("");
     setSelectedImage(null);
+    setAiError(null);
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: userMessage,
+      timestamp: new Date(),
+      imageUri: imageCopy || undefined,
+    };
+
+    setChatMessages((prev) => [...prev, userMsg]);
 
     console.log("=== SENDING MESSAGE TO AI ===");
     console.log("User message:", userMessage);
@@ -350,39 +325,32 @@ export default function AITutorScreen() {
     console.log("Code mixing:", languageSettings?.allow_code_mixing);
     console.log("Selected image:", imageCopy ? 'Yes' : 'No');
 
+    setIsAIResponding(true);
+
     try {
-      if (!systemPrompt && languageSettings) {
-        console.log('⚠️ Warning: No system prompt set, building now...');
-        const builtPrompt = await buildMultilingualSystemPrompt(
-          authUser.id,
-          subjectName,
-          'Interactive Learning',
-          userMessage
-        );
-        setSystemPrompt(builtPrompt);
+      const result = await sendAIMessage(authUser.id, userMessage, {
+        subjectName: subjectName,
+        agentType: 'learning_coach',
+        conversationHistory: chatMessages
+          .slice(-10)
+          .map((msg) => ({
+            role: msg.role === "user" ? "user" : "assistant",
+            content: msg.content,
+          })),
+      });
+
+      if (result.success && result.response) {
+        const aiMsg: Message = {
+          id: Date.now().toString() + '_ai',
+          role: "assistant",
+          content: result.response,
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, aiMsg]);
+        console.log("✅ AI response received successfully");
+      } else {
+        throw new Error(result.error || "Failed to get AI response");
       }
-
-      console.log('✅ Preparing message for AI');
-      console.log('User message:', userMessage);
-      console.log('System prompt set:', !!systemPrompt);
-      
-      const promptToUse = systemPrompt || `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly AI tutor for Class ${user?.grade || '10'} helping ${user?.name || 'student'} learn ${subjectName}. 
-
-Your teaching approach:
-- Be encouraging, patient, and clear
-- Use simple language for Class ${user?.grade || '10'} students
-- Use Indian context (rupees ₹, cricket, familiar names like Rahul, Priya)
-- Break complex concepts into steps
-- Check understanding with questions
-- Use emojis occasionally 😊 💡 ✨
-
-Student's Language: ${languageSettings?.preferred_tutoring_language || 'English'}
-${languageSettings?.allow_code_mixing ? 'Code-mixing allowed: Yes (mix English with Hindi for technical terms)' : ''}`;
-      
-      const fullMessage = `${promptToUse}\n\n---\n\nStudent's question: ${userMessage}\n\nProvide a helpful, encouraging response that builds understanding step by step.`;
-      
-      await sendMessage(fullMessage);
-      console.log("✅ Message sent successfully");
 
       setSessionData(prev => ({
         ...prev,
@@ -405,22 +373,23 @@ ${languageSettings?.allow_code_mixing ? 'Code-mixing allowed: Yes (mix English w
       console.error("❌ Error sending message:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
       console.error("❌ Error details:", errorMessage);
-      
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again. 😔\n\nIf this keeps happening, please check your internet connection.",
-          timestamp: new Date(),
-        },
-      ]);
-      
+      setAiError(errorMessage);
+
+      const errorMsg: Message = {
+        id: Date.now().toString() + '_error',
+        role: "assistant",
+        content: "Sorry, I encountered an error. Please try again. 😔\n\nIf this keeps happening, please check your OpenAI API key in the env file.",
+        timestamp: new Date(),
+      };
+      setChatMessages((prev) => [...prev, errorMsg]);
+
       Alert.alert(
         'Error',
-        'Failed to send message. Please check your internet connection and try again.',
+        'Failed to send message. Please check your OpenAI API key configuration.',
         [{ text: 'OK' }]
       );
+    } finally {
+      setIsAIResponding(false);
     }
   };
 
@@ -597,9 +566,7 @@ ${languageSettings?.allow_code_mixing ? 'Code-mixing allowed: Yes (mix English w
     );
   };
 
-  const isLoading = messages.some(
-    (m) => m.role === "assistant" && m.parts?.some((p) => (p as any).type === "text" && !(p as any).text)
-  );
+  const isLoading = isAIResponding;
 
   return (
     <View style={styles.container}>
@@ -633,9 +600,9 @@ ${languageSettings?.allow_code_mixing ? 'Code-mixing allowed: Yes (mix English w
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
-          {agentError && (
+          {aiError && (
             <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>⚠️ Connection error. Retrying...</Text>
+              <Text style={styles.errorText}>⚠️ {aiError}</Text>
             </View>
           )}
 

@@ -294,10 +294,11 @@ export const sendAIMessage = async (
 
   } catch (error) {
     console.error('Send AI message exception:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return {
       success: false,
       response: 'I apologize, but I encountered an error. Please try again.',
-      error,
+      error: errorMessage,
     };
   }
 };
@@ -307,94 +308,62 @@ const callAIAPI = async (
   systemPrompt: string,
   conversationHistory: Array<{ role: string; content: string }>
 ): Promise<string> => {
-  const lowerMessage = userMessage.toLowerCase();
-  
-  if (lowerMessage.includes('explain') || lowerMessage.includes('what is') || lowerMessage.includes('how')) {
-    return `Great question! Let me break this down for you step by step:
+  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
-1. **Understanding the Basics**: This topic is all about understanding the core concepts that build on what you already know.
-
-2. **The Main Idea**: Think of it like this - imagine you're building with blocks. Each concept is a block that supports the next one.
-
-3. **Real-World Example**: Let's say you're dividing sweets among friends at a birthday party. That's exactly how this concept works in real life!
-
-4. **Key Points to Remember**:
-   • Always start with what you know
-   • Break complex problems into smaller steps
-   • Practice makes perfect!
-
-Would you like me to explain any specific part in more detail? Or shall we try a practice problem? 📝`;
-  } else if (lowerMessage.includes('practice') || lowerMessage.includes('problems') || lowerMessage.includes('question')) {
-    return `Excellent! Let's practice together. Here are some problems for you:
-
-**Problem 1** (Easy 😊):
-If you have 15 apples and you give 5 to your friend, how many do you have left?
-
-**Problem 2** (Medium 🤔):
-A shop sells pencils at ₹5 each. If you buy 8 pencils, how much will you pay?
-
-**Problem 3** (Challenge 💪):
-Solve: 2x + 5 = 15
-What is the value of x?
-
-Try solving these! I'm here if you need help with any step. Which one would you like to start with? 🎯`;
-  } else if (lowerMessage.includes('help') || lowerMessage.includes('stuck') || lowerMessage.includes('don\'t understand')) {
-    return `Don't worry at all! Everyone gets stuck sometimes - that's how we learn! 🌟
-
-Let me help you understand this better:
-
-**Step 1**: First, let's identify what part is confusing. Is it:
-- The concept itself?
-- How to apply it?
-- A specific calculation?
-
-**Step 2**: Once we know where you're stuck, I'll explain it using:
-- Simple language
-- Real examples you can relate to
-- Step-by-step guidance
-
-**Step 3**: We'll practice together until you feel confident!
-
-Tell me exactly where you're stuck, and I'll guide you through it. Remember, asking for help shows you're serious about learning! 💪`;
-  } else if (lowerMessage.includes('progress') || lowerMessage.includes('how am i doing')) {
-    return `You're doing great! Let me share your progress with you:
-
-**Your Learning Journey** 📊:
-- You've been consistent in asking questions
-- You're actively seeking to understand concepts
-- You're not afraid to ask for help when needed
-
-**What's Going Well** ✨:
-- You're engaged and curious
-- You're building a strong foundation
-- Your questions show you're thinking deeply
-
-**Areas to Focus On** 🎯:
-- Keep practicing regularly
-- Try solving problems on your own first
-- Review concepts you've learned
-
-**My Recommendation** 💡:
-Keep up this momentum! Try one practice problem daily. Remember, every expert was once a beginner who never gave up!
-
-What would you like to work on next? 🚀`;
+  if (!apiKey || apiKey === 'your_openai_api_key_here') {
+    console.error('⚠️ OpenAI API key not configured');
+    throw new Error('OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
   }
-  
-  return `I understand what you're asking! Let me help you with that.
 
-Based on your question, here's what I can tell you:
+  console.log('=== CALLING OPENAI API ===');
+  console.log('System prompt length:', systemPrompt.length);
+  console.log('Conversation history length:', conversationHistory.length);
+  console.log('User message:', userMessage.substring(0, 100));
 
-This is a great topic to explore, and I'm here to guide you through it step by step. The key is to understand the fundamentals first, then build on them gradually.
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...conversationHistory.slice(-10),
+    { role: 'user', content: userMessage },
+  ];
 
-Would you like me to:
-1. **Explain the concept** in simple terms?
-2. **Give you practice problems** to try?
-3. **Show you examples** from real life?
-4. **Help you with a specific doubt**?
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 1000,
+      }),
+    });
 
-Just let me know what would help you most! I'm here to make learning easy and fun for you. 😊
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('❌ OpenAI API error:', response.status, errorData);
+      throw new Error(`OpenAI API error: ${response.status} ${errorData?.error?.message || response.statusText}`);
+    }
 
-*Note: This is a placeholder response. For the full AI experience, integrate with your preferred AI service (OpenAI, Claude, etc.) using the system prompts provided.*`;
+    const data = await response.json();
+    const aiResponse = data.choices[0]?.message?.content;
+
+    if (!aiResponse) {
+      throw new Error('No response from OpenAI');
+    }
+
+    console.log('✅ OpenAI response received:', aiResponse.substring(0, 100));
+    return aiResponse;
+
+  } catch (error) {
+    console.error('❌ OpenAI API call failed:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to get response from OpenAI');
+  }
 };
 
 export const getConversationHistory = async (
