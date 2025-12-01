@@ -144,7 +144,6 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
       .from('student_chapter_progress')
       .select(`
         chapter_id,
-        study_time_minutes,
         confidence_level,
         chapter:cbse_chapters(
           chapter_title,
@@ -169,7 +168,7 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
       subject_name: item.chapter?.book?.subject?.subject_name || '',
       icon_emoji: item.chapter?.book?.subject?.icon_emoji || '📚',
       mastery_score: item.confidence_level,
-      study_time_minutes: item.study_time_minutes,
+      study_time_minutes: 0,
     }));
 
   } catch (error: any) {
