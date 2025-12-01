@@ -31,6 +31,7 @@ function RootLayoutNav() {
       <Stack.Screen name="badges" options={{ headerShown: false }} />
       <Stack.Screen name="parent-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="add-child" options={{ headerShown: false }} />
+      <Stack.Screen name="create-goal" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
