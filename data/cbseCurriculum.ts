@@ -337,7 +337,7 @@ export const getPrerequisites = (subject: string, grade: number, chapterName: st
     const chapters = CBSE_CURRICULUM[subject]?.grades[grade]?.chapters;
     const chapter = chapters?.find(ch => ch.name === chapterName);
     return chapter?.prerequisites || [];
-  } catch (error) {
+  } catch {
     return [];
   }
 };
@@ -359,7 +359,7 @@ export const findConceptInCurriculum = (subject: string, concept: string): { gra
       }
     }
     return null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

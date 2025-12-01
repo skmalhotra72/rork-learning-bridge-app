@@ -25,7 +25,6 @@ export default function AssessmentIntroScreen() {
   const params = useLocalSearchParams();
   const subjectProgressId = params.subjectProgressId as string;
   const subjectName = params.subjectName as string;
-  const subjectIcon = params.subjectIcon as string;
   const subjectColor = params.subjectColor as string;
 
   console.log("=== ASSESSMENT INTRO ===");

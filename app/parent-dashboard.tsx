@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Calendar, TrendingUp, Target, Award, BookOpen, Clock } from 'lucide-react-native';
@@ -36,17 +37,7 @@ export default function ParentDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadParentData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedChild?.child?.id) {
-      loadChildData(selectedChild.child.id);
-    }
-  }, [selectedChild]);
-
-  const loadParentData = async () => {
+  const loadParentData = useCallback(async () => {
     try {
       if (!authUser?.id) return;
 
@@ -62,9 +53,9 @@ export default function ParentDashboardScreen() {
       console.error('Load parent data error:', error);
       setLoading(false);
     }
-  };
+  }, [authUser]);
 
-  const loadChildData = async (childId: string) => {
+  const loadChildData = useCallback(async (childId: string) => {
     try {
       if (!authUser?.id) return;
 
@@ -80,7 +71,17 @@ export default function ParentDashboardScreen() {
     } catch (error) {
       console.error('Load child data error:', error);
     }
-  };
+  }, [authUser]);
+
+  useEffect(() => {
+    loadParentData();
+  }, [loadParentData]);
+
+  useEffect(() => {
+    if (selectedChild?.child?.id) {
+      loadChildData(selectedChild.child.id);
+    }
+  }, [selectedChild, loadChildData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -119,7 +120,7 @@ export default function ParentDashboardScreen() {
           </Text>
           <TouchableOpacity
             style={styles.addChildButton}
-            onPress={() => router.push('/parent-add-child' as any)}
+            onPress={() => router.push('/add-child')}
           >
             <Text style={styles.addChildButtonText}>+ Connect Child</Text>
           </TouchableOpacity>
@@ -147,7 +148,7 @@ export default function ParentDashboardScreen() {
           </View>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => router.push('/parent-settings' as any)}
+            onPress={() => router.push('/profile')}
           >
             <Text style={styles.settingsIcon}>⚙️</Text>
           </TouchableOpacity>
@@ -251,8 +252,8 @@ export default function ParentDashboardScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Active Goals</Text>
-                  <TouchableOpacity onPress={() => router.push('/parent-goals' as any)}>
-                    <Text style={styles.seeAll}>See All →</Text>
+                  <TouchableOpacity onPress={() => selectedChild?.child?.id && router.push(`/create-goal?childId=${selectedChild.child.id}`)}>
+                    <Text style={styles.seeAll}>+ New Goal</Text>
                   </TouchableOpacity>
                 </View>
                 {goals.slice(0, 3).map((goal) => (
@@ -284,7 +285,7 @@ export default function ParentDashboardScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Active Rewards</Text>
-                  <TouchableOpacity onPress={() => router.push('/parent-rewards' as any)}>
+                  <TouchableOpacity onPress={() => console.log('Rewards coming soon')}>
                     <Text style={styles.seeAll}>See All →</Text>
                   </TouchableOpacity>
                 </View>
@@ -331,7 +332,7 @@ export default function ParentDashboardScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push('/parent-goals' as any)}
+            onPress={() => selectedChild?.child?.id && router.push(`/create-goal?childId=${selectedChild.child.id}`)}
           >
             <Target size={20} color="#4F46E5" />
             <Text style={styles.actionButtonText}>Set Goals</Text>
@@ -339,7 +340,7 @@ export default function ParentDashboardScreen() {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push('/parent-rewards' as any)}
+            onPress={() => Alert.alert('Coming Soon', 'Rewards feature will be available in the next update.')}
           >
             <Award size={20} color="#4F46E5" />
             <Text style={styles.actionButtonText}>Create Rewards</Text>
