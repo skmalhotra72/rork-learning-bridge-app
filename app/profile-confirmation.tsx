@@ -37,8 +37,32 @@ export default function ProfileConfirmationScreen() {
   }
 
   const handleStartJourney = async () => {
-    if (!authUser?.id) {
-      Alert.alert("Error", "User not authenticated");
+    console.log("=== START JOURNEY CLICKED ===");
+    console.log("Checking authentication...");
+    
+    if (!authUser?.id && !session?.user?.id) {
+      console.error("No authentication found");
+      Alert.alert(
+        "Authentication Required",
+        "Please log in again to continue.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace("/welcome")
+          }
+        ]
+      );
+      return;
+    }
+
+    const userId = authUser?.id || session?.user?.id;
+    console.log("✓ User ID confirmed:", userId);
+
+    if (user.subjectDetails.length === 0) {
+      Alert.alert(
+        "Missing Information",
+        "Please select at least one subject to continue."
+      );
       return;
     }
 
@@ -49,27 +73,39 @@ export default function ProfileConfirmationScreen() {
       console.log('Preferred Language:', preferredLanguage);
       console.log('Allow Code Mixing:', allowCodeMixing);
       
-      const langResult = await saveLanguageSettings(authUser.id, {
-        schoolMedium: schoolMedium || 'English',
-        preferredLanguage: preferredLanguage || 'English',
-        allowCodeMixing: allowCodeMixing,
-        englishProficiency: 3
-      });
+      if (userId) {
+        const langResult = await saveLanguageSettings(userId, {
+          schoolMedium: schoolMedium || 'English',
+          preferredLanguage: preferredLanguage || 'English',
+          allowCodeMixing: allowCodeMixing,
+          englishProficiency: 3
+        });
 
-      if (!langResult.success) {
-        console.error('Language settings save failed:', langResult.error);
-      } else {
-        console.log('✅ Language settings saved successfully');
+        if (!langResult.success) {
+          console.error('Language settings save failed:', langResult.error);
+        } else {
+          console.log('✓ Language settings saved successfully');
+        }
       }
 
+      console.log('=== CALLING COMPLETE ONBOARDING ===');
       const result = await completeOnboarding();
       
       if (!result.success) {
-        Alert.alert("Error", result.error || "Failed to save. Please try again.");
+        console.error("Onboarding completion failed:", result.error);
+        Alert.alert(
+          "Error",
+          result.error || "Failed to complete setup. Please try again."
+        );
+      } else {
+        console.log('✓ Onboarding completed successfully!');
       }
     } catch (error) {
       console.error("Complete onboarding error:", error);
-      Alert.alert("Error", "An unexpected error occurred");
+      Alert.alert(
+        "Error",
+        "An unexpected error occurred. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }

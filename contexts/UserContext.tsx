@@ -167,6 +167,11 @@ export const [UserProvider, useUser] = createContextHook(() => {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
+        options: {
+          data: {
+            full_name: name.trim(),
+          },
+        },
       });
 
       if (authError) {
@@ -176,60 +181,84 @@ export const [UserProvider, useUser] = createContextHook(() => {
 
       if (!authData?.user?.id) {
         console.error("No user ID returned");
-        return { success: false, error: "No user ID returned" };
+        return { success: false, error: "Failed to create account. Please try again." };
       }
 
       const userId = authData.user.id;
-      console.log("User created with ID:", userId);
+      console.log("✓ User created with ID:", userId);
 
-      console.log("Step 2: Waiting for auth to settle...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log("Step 2: Waiting for triggers and RLS to settle...");
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      console.log("Step 3: Creating profile...");
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: userId,
-          full_name: name.trim(),
-          email: email.trim().toLowerCase(),
-          grade: "10"
-        });
+      console.log("Step 3: Verifying profile creation...");
+      let profileExists = false;
+      let retryCount = 0;
+      const maxRetries = 3;
 
-      if (profileError) {
-        console.error("Profile insert error:", profileError);
-        
-        const { data: checkData } = await supabase
+      while (!profileExists && retryCount < maxRetries) {
+        const { data: profileCheck } = await supabase
           .from("profiles")
-          .select("id")
-          .eq("id", userId);
-        
-        if (!checkData || checkData.length === 0) {
-          return { success: false, error: "Failed to create profile. Please try again." };
+          .select("id, full_name")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (profileCheck) {
+          profileExists = true;
+          console.log("✓ Profile verified:", profileCheck.full_name);
+        } else {
+          console.log(`Profile not found yet, retry ${retryCount + 1}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retryCount++;
         }
-        console.log("Profile exists from trigger");
-      } else {
-        console.log("Profile created successfully");
       }
 
-      console.log("Step 4: Creating user stats...");
-      const { error: statsError } = await supabase
+      if (!profileExists) {
+        console.log("Profile not created by trigger, creating manually...");
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: userId,
+            full_name: name.trim(),
+            email: email.trim().toLowerCase(),
+            grade: "10"
+          });
+
+        if (profileError) {
+          console.error("Manual profile creation failed:", profileError);
+          return { success: false, error: "Failed to create profile. Please contact support." };
+        }
+        console.log("✓ Profile created manually");
+      }
+
+      console.log("Step 4: Ensuring user stats exist...");
+      const { data: statsCheck } = await supabase
         .from("user_stats")
-        .insert({
-          user_id: userId,
-          total_xp: 0,
-          current_level: 1,
-          streak_count: 0,
-          concepts_mastered: 0,
-          quizzes_completed: 0
-        });
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      if (statsError) {
-        console.error("Stats error:", statsError);
+      if (!statsCheck) {
+        const { error: statsError } = await supabase
+          .from("user_stats")
+          .insert({
+            user_id: userId,
+            total_xp: 0,
+            current_level: 1,
+            streak_count: 0,
+            concepts_mastered: 0,
+            quizzes_completed: 0,
+            last_activity_date: new Date().toISOString().split('T')[0]
+          });
+
+        if (statsError) {
+          console.warn("Stats creation failed:", statsError.message);
+        } else {
+          console.log("✓ User stats created");
+        }
       } else {
-        console.log("Stats created successfully");
+        console.log("✓ User stats already exist");
       }
 
-      console.log("Signup complete!");
       console.log("Step 5: Setting up session in context...");
       
       setSession(authData.session);
@@ -244,13 +273,17 @@ export const [UserProvider, useUser] = createContextHook(() => {
         hasCompletedOnboarding: false,
       };
       setUser(tempUser);
+      setConnectionError(null);
       
-      console.log("Session set:", !!authData.session);
-      console.log("Auth user set:", authData.user.id);
+      console.log("✓ Session set:", !!authData.session);
+      console.log("✓ User state initialized");
 
-      router.push("/grade-selection");
-      
       console.log("========== SIGNUP COMPLETED SUCCESSFULLY ==========");
+      
+      setTimeout(() => {
+        router.push("/grade-selection");
+      }, 100);
+      
       return { success: true };
     } catch (error) {
       console.error("Unexpected signup error:", error);
@@ -261,6 +294,9 @@ export const [UserProvider, useUser] = createContextHook(() => {
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log("========== LOGIN PROCESS STARTED ==========");
+      console.log("Attempting login for:", email.trim().toLowerCase());
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password: password,
@@ -276,6 +312,8 @@ export const [UserProvider, useUser] = createContextHook(() => {
           errorMessage = "Account not found";
         } else if (error.message.includes("network")) {
           errorMessage = "Network error - check your connection";
+        } else if (error.message.includes("Email not confirmed")) {
+          errorMessage = "Please verify your email before logging in";
         }
         
         return { success: false, error: errorMessage };
@@ -285,22 +323,31 @@ export const [UserProvider, useUser] = createContextHook(() => {
         return { success: false, error: "Failed to login" };
       }
 
+      console.log("✓ Authentication successful");
+      console.log("Loading user profile...");
+
       setSession(data.session);
       setAuthUser(data.user);
+      setConnectionError(null);
 
       await loadUserProfile(data.user.id);
 
+      console.log("Checking onboarding status...");
       const { data: subjects } = await supabase
         .from("subject_progress")
-        .select("*")
-        .eq("user_id", data.user.id);
+        .select("id")
+        .eq("user_id", data.user.id)
+        .limit(1);
 
       if (subjects && subjects.length > 0) {
-        router.replace("/home");
+        console.log("✓ User has completed onboarding, navigating to home");
+        setTimeout(() => router.replace("/home"), 100);
       } else {
-        router.push("/grade-selection");
+        console.log("⚠ User needs to complete onboarding, navigating to grade selection");
+        setTimeout(() => router.push("/grade-selection"), 100);
       }
 
+      console.log("========== LOGIN COMPLETED SUCCESSFULLY ==========");
       return { success: true };
     } catch (error) {
       console.error("Login exception:", error);

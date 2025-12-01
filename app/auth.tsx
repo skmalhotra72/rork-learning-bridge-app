@@ -66,34 +66,61 @@ export default function AuthScreen() {
 
   const handleSignup = async () => {
     if (!signupName.trim()) {
-      Alert.alert("Error", "Please enter your name");
+      Alert.alert("Name Required", "Please enter your full name");
       return;
     }
+    
+    if (signupName.trim().length < 2) {
+      Alert.alert("Invalid Name", "Name must be at least 2 characters long");
+      return;
+    }
+    
     if (!validateEmail(signupEmail)) {
-      Alert.alert("Error", "Please enter a valid email address");
+      Alert.alert("Invalid Email", "Please enter a valid email address");
       return;
     }
+    
     if (signupPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long");
+      Alert.alert(
+        "Weak Password",
+        "Password must be at least 6 characters long for security."
+      );
       return;
     }
+    
     if (signupPassword !== signupConfirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert(
+        "Passwords Don't Match",
+        "Please make sure both password fields are the same."
+      );
       return;
     }
 
     setIsLoading(true);
+    console.log("Starting signup process...");
+    
     try {
-      const result = await signup(signupName, signupEmail, signupPassword);
+      const result = await signup(
+        signupName.trim(),
+        signupEmail.trim(),
+        signupPassword
+      );
       
       if (!result.success) {
-        Alert.alert("Error", result.error || "Failed to create account");
+        console.error("Signup failed:", result.error);
+        Alert.alert(
+          "Signup Failed",
+          result.error || "Failed to create account. Please try again."
+        );
       } else {
-        Alert.alert("Success", "Account created! ✓");
+        console.log("Signup successful! Navigating to grade selection...");
       }
     } catch (error) {
       console.error("Signup error:", error);
-      Alert.alert("Error", "An unexpected error occurred");
+      Alert.alert(
+        "Error",
+        "An unexpected error occurred. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
