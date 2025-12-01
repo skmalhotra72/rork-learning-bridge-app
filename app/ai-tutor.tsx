@@ -351,30 +351,37 @@ export default function AITutorScreen() {
     console.log("Selected image:", imageCopy ? 'Yes' : 'No');
 
     try {
-      let currentPrompt = systemPrompt;
-      if (!currentPrompt && languageSettings) {
+      if (!systemPrompt && languageSettings) {
         console.log('⚠️ Warning: No system prompt set, building now...');
-        currentPrompt = await buildMultilingualSystemPrompt(
+        const builtPrompt = await buildMultilingualSystemPrompt(
           authUser.id,
           subjectName,
           'Interactive Learning',
           userMessage
         );
-        setSystemPrompt(currentPrompt);
+        setSystemPrompt(builtPrompt);
       }
 
-      if (!currentPrompt) {
-        currentPrompt = `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly AI tutor helping ${user?.name || 'student'} learn ${subjectName}. Be encouraging, patient, and clear in your explanations. Use simple language appropriate for Class ${user?.grade || '10'} students.`;
-      }
-
-      if (currentPrompt) {
-        console.log('✅ Using system prompt');
-        console.log('Prompt language:', languageSettings?.preferred_tutoring_language);
-        console.log('Code mixing:', languageSettings?.allow_code_mixing);
-      }
+      console.log('✅ Preparing message for AI');
+      console.log('User message:', userMessage);
+      console.log('System prompt set:', !!systemPrompt);
       
-      const messageWithContext = `${currentPrompt}\n\nStudent's question: ${userMessage}`;
-      await sendMessage(messageWithContext);
+      const promptToUse = systemPrompt || `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly AI tutor for Class ${user?.grade || '10'} helping ${user?.name || 'student'} learn ${subjectName}. 
+
+Your teaching approach:
+- Be encouraging, patient, and clear
+- Use simple language for Class ${user?.grade || '10'} students
+- Use Indian context (rupees ₹, cricket, familiar names like Rahul, Priya)
+- Break complex concepts into steps
+- Check understanding with questions
+- Use emojis occasionally 😊 💡 ✨
+
+Student's Language: ${languageSettings?.preferred_tutoring_language || 'English'}
+${languageSettings?.allow_code_mixing ? 'Code-mixing allowed: Yes (mix English with Hindi for technical terms)' : ''}`;
+      
+      const fullMessage = `${promptToUse}\n\n---\n\nStudent's question: ${userMessage}\n\nProvide a helpful, encouraging response that builds understanding step by step.`;
+      
+      await sendMessage(fullMessage);
       console.log("✅ Message sent successfully");
 
       setSessionData(prev => ({

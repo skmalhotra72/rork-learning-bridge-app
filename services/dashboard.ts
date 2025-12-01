@@ -180,7 +180,7 @@ export const getDifficultChapters = async (userId: string, limit: number = 5): P
         mastery_score: item.confidence_level,
         study_time_minutes: 0,
       };
-    });
+    }) as DifficultChapter[];
 
   } catch (error: any) {
     console.error('Get difficult chapters exception:', error.message || JSON.stringify(error));
