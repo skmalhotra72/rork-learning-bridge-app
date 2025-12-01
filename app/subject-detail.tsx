@@ -18,10 +18,11 @@ interface ChapterProgress {
   id: string;
   user_id: string;
   chapter_id: string;
-  marked_completed: boolean;
-  marked_difficult: boolean;
+  is_completed: boolean;
+  is_difficult: boolean;
   confidence_level: number;
-  study_time_minutes: number;
+  study_time_minutes?: number;
+  last_studied?: string | null;
   mastery_score?: number;
   status?: string;
 }
@@ -45,6 +46,7 @@ export default function SubjectDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [book, setBook] = useState<any>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSubjectDetail();
@@ -55,6 +57,7 @@ export default function SubjectDetailScreen() {
     try {
       if (!authUser) {
         console.error('No authenticated user');
+        setError('Not authenticated. Please log in.');
         setLoading(false);
         return;
       }
@@ -62,14 +65,25 @@ export default function SubjectDetailScreen() {
       const gradeNum = parseInt(gradeNumber || '10', 10);
       console.log('Loading subject detail:', { subjectCode, gradeNumber: gradeNum });
 
+      setError(null);
       const data = await getSubjectDetail(authUser.id, subjectCode || '', gradeNum);
       
       console.log('Subject detail loaded:', data);
-      setBook(data.book);
-      setChapters(data.chapters);
+      
+      if (!data.success) {
+        const errorMsg = typeof data.error === 'string' ? data.error : 'Failed to load subject details';
+        setError(errorMsg);
+        console.error('Subject detail error:', errorMsg);
+      } else {
+        setBook(data.book);
+        setChapters(data.chapters);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Load subject detail error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setError(errorMsg);
       setLoading(false);
     }
   };
@@ -102,11 +116,11 @@ export default function SubjectDetailScreen() {
 
   const getProgressStatus = (progress?: ChapterProgress | null): string => {
     if (!progress) return 'not_started';
-    if (progress.marked_completed && (progress.confidence_level || 0) >= 80) {
+    if (progress.is_completed && (progress.confidence_level || 0) >= 80) {
       return 'mastered';
     }
-    if (progress.marked_completed) return 'completed';
-    if (progress.study_time_minutes > 0) return 'in_progress';
+    if (progress.is_completed) return 'completed';
+    if ((progress.study_time_minutes || 0) > 0 || progress.last_studied) return 'in_progress';
     return 'not_started';
   };
 
@@ -119,10 +133,18 @@ export default function SubjectDetailScreen() {
     );
   }
 
-  if (!book) {
+  if (error || !book) {
     return (
       <SafeAreaView style={styles.errorContainer} edges={['top', 'bottom']}>
-        <Text style={styles.errorText}>Subject not found</Text>
+        <Text style={styles.errorEmoji}>😟</Text>
+        <Text style={styles.errorText}>{error || 'Subject not found'}</Text>
+        <Text style={styles.errorHint}>Please check your network connection and try again.</Text>
+        <TouchableOpacity 
+          style={styles.retryButton} 
+          onPress={loadSubjectDetail}
+        >
+          <Text style={styles.retryButtonText}>🔄 Try Again</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backButton}>← Go Back</Text>
         </TouchableOpacity>
@@ -240,9 +262,9 @@ export default function SubjectDetailScreen() {
                     </Text>
                   )}
 
-                  {progress && progress.study_time_minutes > 0 && (
+                  {progress && (progress.study_time_minutes || 0) > 0 && (
                     <Text style={styles.studyTimeText}>
-                      ⏱️ {Math.round(progress.study_time_minutes)} min studied
+                      ⏱️ {Math.round(progress.study_time_minutes || 0)} min studied
                     </Text>
                   )}
                 </View>
@@ -287,10 +309,35 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: Colors.background,
   },
-  errorText: {
-    fontSize: 16,
-    color: '#EF4444',
+  errorEmoji: {
+    fontSize: 64,
     marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#EF4444',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorHint: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 24,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
   },
   backButton: {
     fontSize: 16,

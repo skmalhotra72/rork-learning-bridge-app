@@ -248,7 +248,11 @@ export const getSubjectDetail = async (
       .eq('grade_number', gradeNumber)
       .single();
 
-    if (gradeError || !gradeData) throw new Error('Grade not found');
+    if (gradeError) {
+      console.error('Grade lookup error:', gradeError);
+      throw new Error(`Grade not found: ${gradeError.message}`);
+    }
+    if (!gradeData) throw new Error('Grade not found: No data returned');
 
     const { data: subjectData, error: subjectError } = await supabase
       .from('cbse_subjects')
@@ -256,7 +260,11 @@ export const getSubjectDetail = async (
       .eq('subject_code', subjectCode)
       .single();
 
-    if (subjectError || !subjectData) throw new Error('Subject not found');
+    if (subjectError) {
+      console.error('Subject lookup error:', subjectError);
+      throw new Error(`Subject not found: ${subjectError.message}`);
+    }
+    if (!subjectData) throw new Error('Subject not found: No data returned');
 
     const { data: books, error: bookError } = await supabase
       .from('cbse_books')
@@ -268,10 +276,13 @@ export const getSubjectDetail = async (
       .eq('grade_id', gradeData.id)
       .eq('subject_id', subjectData.id);
 
-    if (bookError) throw bookError;
+    if (bookError) {
+      console.error('Book lookup error:', bookError);
+      throw new Error(`Book lookup failed: ${bookError.message}`);
+    }
 
     const book = books?.[0];
-    if (!book) throw new Error('Book not found');
+    if (!book) throw new Error('Book not found for this grade and subject');
 
     const { data: chapters, error: chaptersError } = await supabase
       .from('cbse_chapters')
@@ -279,22 +290,39 @@ export const getSubjectDetail = async (
       .eq('book_id', book.id)
       .order('chapter_number');
 
-    if (chaptersError) throw chaptersError;
+    if (chaptersError) {
+      console.error('Chapters lookup error:', chaptersError);
+      throw new Error(`Chapters lookup failed: ${chaptersError.message}`);
+    }
 
-    const { data: progressData, error: progressError } = await supabase
-      .from('student_chapter_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .in('chapter_id', (chapters || []).map(c => c.id));
+    const chapterIds = (chapters || []).map(c => c.id);
+    let progressData = [];
 
-    if (progressError) throw progressError;
+    if (chapterIds.length > 0) {
+      const { data: progress, error: progressError } = await supabase
+        .from('student_chapter_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .in('chapter_id', chapterIds);
+
+      if (progressError) {
+        console.error('Progress lookup error:', progressError);
+      } else {
+        progressData = progress || [];
+      }
+    }
 
     const chaptersWithProgress = (chapters || []).map(chapter => ({
       ...chapter,
       progress: progressData?.find(p => p.chapter_id === chapter.id) || null,
     }));
 
-    console.log('✅ Subject detail loaded');
+    console.log('✅ Subject detail loaded:', {
+      bookId: book.id,
+      chaptersCount: chaptersWithProgress.length,
+      progressCount: progressData.length
+    });
+
     return {
       book,
       chapters: chaptersWithProgress,
@@ -303,11 +331,13 @@ export const getSubjectDetail = async (
 
   } catch (error) {
     console.error('Get subject detail exception:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error details:', errorMessage);
     return {
       book: null,
       chapters: [],
       success: false,
-      error,
+      error: errorMessage,
     };
   }
 };
