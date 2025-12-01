@@ -299,7 +299,7 @@ export default function HomeScreen() {
                   subject={subject}
                   onPress={() => {
                     router.push({
-                      pathname: "/chapter-index",
+                      pathname: "/subject-detail",
                       params: {
                         subjectCode: subject.subject_code,
                         gradeNumber: user.grade,
