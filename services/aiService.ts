@@ -311,42 +311,47 @@ const simulateAIResponse = async (
 ): Promise<string> => {
   console.log('=== USING SIMULATED AI (No API Key) ===');
   
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+  await new Promise(resolve => setTimeout(resolve, 1500));
   
   const messageLower = userMessage.toLowerCase();
-  const studentName = context.student?.name?.split(' ')[0] || 'Student';
-  const grade = context.student?.grade || '10';
-  const topic = context.current_topic?.topic_title || 'this topic';
+  const studentName = context.student?.name?.split(' ')[0] || 'there';
+  const currentTopic = context.current_topic?.topic_title || 'this topic';
+  const studentGrade = context.student?.grade || '10';
+  const topicsDone = (context.overall_stats?.total_xp || 0) / 100;
   
-  if (messageLower.includes('explain') || messageLower.includes('समझा') || messageLower.includes('what is')) {
-    return `Great question, ${studentName}! 🎯\n\nLet me explain ${topic} in a simple way:\n\n1️⃣ **Core Concept**: Think of it like a building block in ${topic}. Just like how we use bricks to build a house, this concept helps us understand bigger ideas.\n\n2️⃣ **Real-world Example**: Imagine you're at a cricket match 🏏. The way runs add up is similar to how these concepts work together.\n\n3️⃣ **Key Points for Class ${grade}**:\n   • Start with the basics\n   • Build step by step\n   • Practice makes perfect\n\n💡 **Pro Tip**: Try to connect this with what you already know. It makes learning easier!\n\nDoes this make sense? Want me to explain any part in more detail?`;
+  if (messageLower.match(/^(hi|hello|hey|good morning|good evening|namaste)/)) {
+    return `Hello ${studentName}! 👋\n\nGreat to see you learning today! You've already mastered ${topicsDone} topics - that's awesome progress! 🌟\n\nHow can I help you with ${currentTopic} today?`;
   }
   
-  if (messageLower.includes('practice') || messageLower.includes('problem') || messageLower.includes('question')) {
-    return `Awesome! Let's practice! 💪\n\n**Practice Problem for Class ${grade}:**\n\nConsider this example related to ${topic}:\n\n**Question**: Solve the following step by step.\n\n**Steps to follow:**\n1. Read the problem carefully\n2. Identify what's given and what's asked\n3. Apply the formula or concept\n4. Calculate step by step\n5. Check your answer\n\n**Hint**: Remember to show your work! It helps you catch mistakes and understand better.\n\n**Example Solution Approach:**\nStep 1: Write down what you know\nStep 2: Apply the concept we discussed\nStep 3: Simplify and solve\nStep 4: Verify your answer\n\n🎯 Try solving it yourself first! If you get stuck, let me know where you're having trouble and I'll guide you.\n\n📚 Remember: Making mistakes is part of learning!`;
+  if (messageLower.match(/what is|what are|define|meaning of/)) {
+    return `Great question! Let me explain that for you.\n\nFor Class ${studentGrade}, here's a clear explanation:\n\n**Key Concept:**\nThis is an important topic in ${currentTopic}. Let me break it down step by step:\n\n1. **Basic Understanding:** Start with the fundamental definition\n2. **Real-world Connection:** Think of it like [everyday example]\n3. **Why It Matters:** This helps you solve more complex problems later\n\n**Example to Remember:**\nFor instance, imagine you're [relatable scenario for Class ${studentGrade} student]...\n\nWould you like me to:\n- Give you a practice problem?\n- Explain with more examples?\n- Show how this connects to other topics?\n\nYou're doing great by asking questions! 🎯`;
   }
   
-  if (messageLower.includes('solve') || messageLower.includes('help') || messageLower.includes('how to')) {
-    return `I'm here to help you, ${studentName}! 🙌\n\n**Let's break this down together:**\n\n🔍 **Step 1 - Understand**\nFirst, let's make sure we understand what the question is asking. Can you identify the key information?\n\n📝 **Step 2 - Plan**\nThink about which concept from ${topic} applies here. What formula or method should we use?\n\n⚡ **Step 3 - Execute**\nLet's work through it systematically:\n   • Start with what you know\n   • Apply the concept step by step\n   • Show your calculations\n\n✅ **Step 4 - Check**\nAlways verify your answer makes sense!\n\n**Key Concept for Class ${grade}:**\nThis relates to understanding the fundamentals. The more you practice, the more confident you'll become.\n\n🌟 **Tip**: Don't rush! Take your time to understand each step. Quality over speed!\n\nWhat part would you like me to focus on?`;
+  if (messageLower.match(/how to|how do|how can|steps to/)) {
+    return `Excellent! Let me show you the step-by-step approach.\n\n**Here's how to solve this type of problem:**\n\n**Step 1:** Understand what is given\n- Read the question carefully\n- Identify the known values\n\n**Step 2:** Determine what you need to find\n- What is the question asking for?\n\n**Step 3:** Apply the right formula/method\n- For ${currentTopic}, we typically use [relevant approach]\n\n**Step 4:** Calculate and verify\n- Show your work clearly\n- Check if your answer makes sense\n\n**Pro Tip for Class ${studentGrade}:** 💡\nRemember to always write units (if applicable) and show your steps in exams!\n\nWant me to walk you through a practice problem? 🎓`;
   }
   
-  if (messageLower.includes('difficult') || messageLower.includes('hard') || messageLower.includes('confused')) {
-    return `I understand, ${studentName}. Don't worry! 💙\n\nMany Class ${grade} students find ${topic} challenging at first. That's completely normal and means you're pushing yourself to learn!\n\n**Let's make it easier:**\n\n🎯 **Simplify the Concept**\nThink of it this way: [Simple analogy related to everyday life]\n\n📚 **Break it Down**\nInstead of looking at the whole problem, let's focus on small parts:\n   • Part 1: Basic understanding\n   • Part 2: Simple examples\n   • Part 3: Practice problems\n\n💪 **Build Confidence**\nStart with easier problems and gradually work your way up. Every expert was once a beginner!\n\n🌟 **Study Tips:**\n1. Review the basics first\n2. Practice regularly (even 15 minutes daily helps!)\n3. Don't hesitate to ask questions\n4. Teach someone else (best way to learn!)\n\n**Remember**: Struggling means you're learning! Keep going! 🚀\n\nShall we start with a simple example?`;
+  if (messageLower.match(/why|reason|purpose/)) {
+    return `That's a thoughtful question! Understanding the "why" makes learning much easier.\n\n**Here's why this is important:**\n\n🎯 **In Your Syllabus:**\nThis topic appears in your Class ${studentGrade} exams and carries good marks. Understanding it well will help you score better!\n\n📚 **Foundation for Future:**\nThis concept builds the base for more advanced topics you'll learn later. It's like building blocks - you need this solid foundation.\n\n🌍 **Real-World Application:**\nYou actually use this in daily life! For example, [practical example relevant to students]...\n\n**Here's a cool fact:**\n[Interesting trivia or application related to the topic]\n\nDoes this help clarify why we study this? Want to explore more? 🚀`;
   }
   
-  if (messageLower.includes('progress') || messageLower.includes('how am i doing')) {
-    const level = context.overall_stats?.current_level || 1;
-    const xp = context.overall_stats?.total_xp || 0;
-    const streak = context.overall_stats?.current_streak || 0;
-    
-    return `${studentName}, you're doing great! 🎉\n\n**Your Progress Summary:**\n\n📊 **Level**: ${level}\n⭐ **Total XP**: ${xp}\n🔥 **Streak**: ${streak} days\n\n**Strengths:**\n✅ You're actively engaging with the material\n✅ Asking good questions shows curiosity\n✅ Regular practice is building your skills\n\n**Areas to Focus:**\n📚 Keep practicing ${topic} regularly\n💪 Challenge yourself with harder problems\n🎯 Try to maintain your study streak\n\n**Recommendations for Class ${grade}:**\n1. Spend 20-30 minutes daily on practice\n2. Review mistakes - they're learning opportunities\n3. Connect concepts to real-world examples\n4. Don't hesitate to ask for help\n\n🌟 **Achievement Unlocked**: You're building a strong foundation!\n\nKeep up the excellent work! Your dedication will pay off! 🚀`;
+  if (messageLower.match(/example|show me|demonstrate/)) {
+    return `Sure! Let me give you a clear example.\n\n**Example Problem:**\n[Typical Class ${studentGrade} level problem for ${currentTopic}]\n\n**Solution:**\n\n**Given:** [What we know]\n**To Find:** [What we need]\n\n**Step-by-Step Solution:**\n\n1️⃣ First step: [Clear explanation]\n   \n2️⃣ Second step: [Show calculation]\n   \n3️⃣ Third step: [Continue solving]\n   \n4️⃣ Final answer: [Result with units]\n\n**Key Takeaway:**\nThe important thing here is [main learning point].\n\nReady to try a similar problem yourself? I can guide you! 💪`;
   }
   
-  if (messageLower.includes('thank') || messageLower.includes('thanks') || messageLower.includes('धन्यवाद')) {
-    return `You're very welcome, ${studentName}! 😊\n\nI'm so happy I could help! Remember:\n\n💡 Learning is a journey, not a race\n🎯 Every question you ask makes you smarter\n🌟 Keep that curiosity alive!\n\nIf you need help with anything else about ${topic} or any other subject, I'm always here for you!\n\nHappy learning! 📚✨`;
+  if (messageLower.match(/practice|problem|question|solve|help me solve/)) {
+    return `Perfect! Practice is the best way to learn! 📝\n\n**Let's Practice Together:**\n\nHere's a problem for you to try:\n\n**Question:**\n[A typical problem from ${currentTopic} suitable for Class ${studentGrade}]\n\n**Hints to get you started:**\n- First, identify what's given\n- Think about which formula or method applies\n- Take it step by step\n\nTry solving it, and then tell me your answer! I'll help you check if you're on the right track.\n\nOr if you need help at any step, just ask! I'm here to guide you. 🎓\n\nWant to see the solution approach first? Let me know! 😊`;
   }
   
-  return `That's an interesting question about ${topic}, ${studentName}! 🤔\n\n**Let me help you with that:**\n\nFor Class ${grade} students, it's important to understand the core principles. Here's what you need to know:\n\n🎯 **Key Points:**\n• Focus on understanding the 'why' not just the 'how'\n• Connect new concepts to what you already know\n• Practice regularly to build mastery\n\n📝 **Approach:**\n1. Start with the fundamentals\n2. Work through examples step by step\n3. Apply concepts to different scenarios\n4. Review and reinforce your understanding\n\n💪 **Study Strategy:**\n• Break complex topics into smaller chunks\n• Use diagrams and visual aids when possible\n• Explain concepts in your own words\n• Test yourself regularly\n\n🌟 **Remember**: The fact that you're asking questions means you're on the right path to mastery!\n\nWould you like me to explain any specific part in more detail? Or shall we try a practice problem?`;
+  if (messageLower.match(/difficult|hard|confused|don't understand|not clear/)) {
+    return `I understand, ${studentName}! Don't worry - everyone finds some topics challenging at first. That's totally normal! 💪\n\nLet me help make this clearer for you:\n\n**Let's Simplify:**\nThink of ${currentTopic} like this: [Simple analogy]\n\n**Breaking it Down:**\nInstead of trying to understand everything at once, let's take it piece by piece:\n\n1. **First:** Understand just the basic idea\n2. **Then:** See one simple example\n3. **Next:** Try a small problem\n4. **Finally:** Build up to more complex ones\n\n**Remember:**\n- You've already mastered ${topicsDone} topics - you can do this too! 🌟\n- It's okay to take your time\n- Asking questions (like you're doing now) is exactly how you learn!\n\nWhich specific part is most confusing? Let me explain that part in even simpler terms! 🤝`;
+  }
+  
+  if (messageLower.match(/thank|thanks|helpful|great|awesome|understood/)) {
+    return `You're very welcome, ${studentName}! 😊\n\nI'm so happy I could help! That's what I'm here for. 🎉\n\n**Your Progress Today:**\n✅ Asked great questions\n✅ Showed interest in understanding deeply\n✅ Taking your learning seriously\n\nKeep this curiosity alive! The fact that you're asking questions and trying to understand shows you're on the right path to success. 🌟\n\n**What's Next?**\n- Want to practice more problems?\n- Move to the next concept?\n- Review anything else?\n\nRemember: I'm always here whenever you need help. Keep learning, keep growing! 🚀\n\nYour ${topicsDone} mastered topics will soon become ${topicsDone + 1}, ${topicsDone + 2}, and more! 💪`;
+  }
+  
+  return `Thanks for your question about ${currentTopic}!\n\nBased on your progress so far (${topicsDone} topics mastered! 🌟), I know you can understand this!\n\n**Here's what I can help you with:**\n\n📖 **Understanding Concepts**\n"What is [concept]?" - I'll explain it simply\n\n💡 **Problem Solving**\n"How do I solve [problem type]?" - Step-by-step guidance\n\n📝 **Practice**\n"Give me a practice problem" - I'll create one for you\n\n🎯 **Examples**\n"Show me an example" - Real examples with solutions\n\n❓ **Doubts**\n"I'm confused about [topic]" - I'll clarify it\n\n**Your Current Topic:** ${currentTopic}\n**Your Grade:** Class ${studentGrade}\n\nJust ask me anything - I'm here to help you succeed! What would you like to know? 😊`;
 };
 
 const callAIAPI = async (
