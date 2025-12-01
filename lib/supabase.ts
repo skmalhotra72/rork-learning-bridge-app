@@ -24,6 +24,52 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+const DEFAULT_TIMEOUT = 10000;
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+
+interface QueryOptions {
+  timeout?: number;
+  retries?: number;
+}
+
+export const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+    )
+  ]);
+};
+
+export const withRetry = async <T>(
+  operation: () => Promise<T>,
+  retries: number = MAX_RETRIES,
+  delay: number = RETRY_DELAY
+): Promise<T> => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    
+    console.log(`Retry attempt. Remaining: ${retries}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return withRetry(operation, retries - 1, delay * 2);
+  }
+};
+
+export const supabaseQuery = async <T>(
+  queryFn: () => Promise<T>,
+  options: QueryOptions = {}
+): Promise<T> => {
+  const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = options;
+  
+  return withRetry(
+    () => withTimeout(queryFn(), timeout),
+    retries
+  );
+};
+
 export const testConnection = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     const { error } = await supabase.from('profiles').select('id').limit(1);

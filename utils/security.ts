@@ -52,7 +52,73 @@ export const sanitizeInput = (input: string | unknown): string | unknown => {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
+    .replace(/&/g, '&amp;')
+    .replace(/\//g, '&#x2F;')
     .trim();
+};
+
+export const sanitizeObject = <T extends Record<string, unknown>>(obj: T): T => {
+  const sanitized: Record<string, unknown> = {};
+  
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeInput(value);
+    } else if (Array.isArray(value)) {
+      sanitized[key] = value.map(item => 
+        typeof item === 'string' ? sanitizeInput(item) : item
+      );
+    } else if (value && typeof value === 'object') {
+      sanitized[key] = sanitizeObject(value as Record<string, unknown>);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  
+  return sanitized as T;
+};
+
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+};
+
+export const validatePassword = (password: string): { valid: boolean; error?: string } => {
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters' };
+  }
+  if (password.length > 128) {
+    return { valid: false, error: 'Password is too long' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must contain lowercase letter' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain uppercase letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain a number' };
+  }
+  return { valid: true };
+};
+
+export const sanitizeFileName = (fileName: string): string => {
+  return fileName
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/\.{2,}/g, '.')
+    .substring(0, 255);
+};
+
+export const clampNumber = (value: number, min: number, max: number): number => {
+  return Math.max(min, Math.min(max, value));
+};
+
+export const validateUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
 };
 
 type ActivityAction = {

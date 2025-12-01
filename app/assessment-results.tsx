@@ -150,12 +150,17 @@ export default function AssessmentResultsScreen() {
 
       console.log("✅ Subject found:", existingSubject.subject);
 
-      // Update the subject status
+      // Update the subject status with bounded mastery percentage
+      const boundedMastery = Math.max(0, Math.min(100, Math.floor(analysis.score)));
+      if (boundedMastery !== analysis.score) {
+        console.warn('Mastery percentage clamped from', analysis.score, 'to', boundedMastery);
+      }
+
       const { data: updateData, error: updateError } = await supabase
         .from("subject_progress")
         .update({
           status: "lets_bridge_gaps",
-          mastery_percentage: analysis.score,
+          mastery_percentage: boundedMastery,
           last_updated: new Date().toISOString(),
         })
         .eq("id", subjectProgressId)

@@ -1,5 +1,8 @@
 import { supabase } from '@/lib/supabase';
 
+const MAX_XP = 2147483647;
+const MIN_XP = 0;
+
 export interface XPTransaction {
   id: string;
   user_id: string;
@@ -52,15 +55,31 @@ export const addXP = async (
   concept?: string
 ): Promise<{ success: boolean; totalXP?: number; leveledUp?: boolean; newLevel?: number; error?: any }> => {
   try {
+    if (!userId || typeof userId !== 'string') {
+      console.error('Invalid user ID');
+      return { success: false, error: 'Invalid user ID' };
+    }
+
+    if (typeof xpAmount !== 'number' || isNaN(xpAmount) || !isFinite(xpAmount)) {
+      console.error('Invalid XP amount:', xpAmount);
+      return { success: false, error: 'Invalid XP amount' };
+    }
+
+    const clampedXP = Math.max(MIN_XP, Math.min(Math.floor(xpAmount), MAX_XP));
+    
+    if (clampedXP !== xpAmount) {
+      console.warn('XP amount clamped from', xpAmount, 'to', clampedXP);
+    }
+
     console.log('=== ADDING XP ===');
     console.log('User:', userId);
-    console.log('Amount:', xpAmount);
+    console.log('Amount:', clampedXP);
     console.log('Reason:', reason);
 
     const { data, error } = await supabase
       .rpc('add_xp_to_user', {
         p_user_id: userId,
-        p_xp_amount: xpAmount,
+        p_xp_amount: clampedXP,
         p_reason: reason,
         p_source: source,
         p_subject: subject,

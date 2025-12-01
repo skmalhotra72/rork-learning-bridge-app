@@ -239,11 +239,34 @@ export default function AssessmentQuizScreen() {
   }, [loadQuestions]);
 
   const handleOptionSelect = (optionIndex: number) => {
+    const currentQuestion = questions[currentQuestionIndex];
+    if (optionIndex < 0 || optionIndex >= currentQuestion.options.length) {
+      console.error('Invalid option index:', optionIndex);
+      return;
+    }
     setSelectedOption(optionIndex);
   };
 
   const handleNext = () => {
+    if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) {
+      console.error('Invalid question index:', currentQuestionIndex);
+      Alert.alert('Error', 'Invalid question. Please restart the assessment.');
+      return;
+    }
+
     const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion || !currentQuestion.options) {
+      console.error('Invalid question data:', currentQuestion);
+      Alert.alert('Error', 'Invalid question data. Please restart the assessment.');
+      return;
+    }
+
+    if (selectedOption !== null && (selectedOption < 0 || selectedOption >= currentQuestion.options.length)) {
+      console.error('Invalid option index:', selectedOption);
+      Alert.alert('Error', 'Invalid option selected.');
+      return;
+    }
+
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
 
     const newAnswer = {
@@ -270,7 +293,19 @@ export default function AssessmentQuizScreen() {
   };
 
   const handleSkip = () => {
+    if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) {
+      console.error('Invalid question index:', currentQuestionIndex);
+      Alert.alert('Error', 'Invalid question. Please restart the assessment.');
+      return;
+    }
+
     const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) {
+      console.error('Invalid question data:', currentQuestion);
+      Alert.alert('Error', 'Invalid question data. Please restart the assessment.');
+      return;
+    }
+
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
 
     const newAnswer = {
@@ -341,7 +376,31 @@ export default function AssessmentQuizScreen() {
     );
   }
 
+  if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LinearGradient
+          colors={["#EEF2FF", Colors.background]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <Text style={styles.loadingText}>Error loading question</Text>
+      </View>
+    );
+  }
+
   const currentQuestion = questions[currentQuestionIndex];
+  if (!currentQuestion || !currentQuestion.options || currentQuestion.options.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LinearGradient
+          colors={["#EEF2FF", Colors.background]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <Text style={styles.loadingText}>Error: Invalid question data</Text>
+      </View>
+    );
+  }
+
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
   return (

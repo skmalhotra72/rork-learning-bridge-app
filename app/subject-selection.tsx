@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, CheckSquare, Square } from "lucide-react-native";
 import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -62,23 +62,24 @@ export default function SubjectSelectionScreen() {
           </View>
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>Select your subjects</Text>
-            <Text style={styles.subtitle}>
-              Choose all subjects you&apos;re studying
-            </Text>
-          </View>
+        <View style={styles.header}>
+          <Text style={styles.title}>Select your subjects</Text>
+          <Text style={styles.subtitle}>
+            Choose all subjects you&apos;re studying
+          </Text>
+        </View>
 
-          <View style={styles.subjectGrid}>
-            {SUBJECTS.map((subject) => {
-              const isSelected = selectedSubjects.includes(subject.id);
-              return (
+        <FlatList
+          data={SUBJECTS}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item: subject }) => {
+            const isSelected = selectedSubjects.includes(subject.id);
+            return (
+              <View style={styles.subjectCardWrapper}>
                 <Pressable
-                  key={subject.id}
                   style={({ pressed }) => [
                     styles.subjectCard,
                     { borderColor: subject.color },
@@ -104,19 +105,29 @@ export default function SubjectSelectionScreen() {
                     {subject.name}
                   </Text>
                 </Pressable>
-              );
-            })}
-          </View>
-
-          {selectedSubjects.length > 0 && (
-            <View style={styles.counterContainer}>
-              <Text style={styles.counterText}>
-                {selectedSubjects.length} subject
-                {selectedSubjects.length > 1 ? "s" : ""} selected
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+              </View>
+            );
+          }}
+          ListFooterComponent={
+            selectedSubjects.length > 0 ? (
+              <View style={styles.counterContainer}>
+                <Text style={styles.counterText}>
+                  {selectedSubjects.length} subject
+                  {selectedSubjects.length > 1 ? "s" : ""} selected
+                </Text>
+              </View>
+            ) : null
+          }
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          getItemLayout={(_, index) => ({
+            length: 120,
+            offset: 120 * Math.floor(index / 2),
+            index,
+          })}
+        />
 
         <View style={styles.footer}>
           <Pressable
@@ -193,15 +204,15 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: Colors.primary,
   },
-  scrollContent: {
-    flexGrow: 1,
+  header: {
+    marginBottom: 24,
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 24,
-  },
-  header: {
-    marginBottom: 32,
     alignItems: "center",
+  },
+  listContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 24,
   },
   title: {
     fontSize: 28,
@@ -215,13 +226,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
   },
-  subjectGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+  subjectCardWrapper: {
+    width: "50%",
+    padding: 6,
   },
   subjectCard: {
-    width: "48%",
+    flex: 1,
     backgroundColor: Colors.cardBackground,
     borderRadius: 16,
     padding: 16,
