@@ -26,10 +26,12 @@ const CelebrationModal: React.FC<CelebrationModalProps> = ({ visible, type, data
   const fadeAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
+    let animationInstance: Animated.CompositeAnimation | null = null
+    
     if (visible) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       
-      Animated.parallel([
+      animationInstance = Animated.parallel([
         Animated.spring(scaleAnim, {
           toValue: 1,
           friction: 8,
@@ -41,10 +43,18 @@ const CelebrationModal: React.FC<CelebrationModalProps> = ({ visible, type, data
           duration: 300,
           useNativeDriver: true
         })
-      ]).start()
+      ])
+      
+      animationInstance.start()
     } else {
       scaleAnim.setValue(0)
       fadeAnim.setValue(0)
+    }
+    
+    return () => {
+      if (animationInstance) {
+        animationInstance.stop()
+      }
     }
   }, [visible, scaleAnim, fadeAnim])
 

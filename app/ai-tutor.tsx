@@ -51,6 +51,7 @@ export default function AITutorScreen() {
       timestamp: new Date(),
     },
   ]);
+  const MAX_MESSAGES = 50;
   const [sessionData, setSessionData] = useState({
     conceptsExplained: [] as string[],
     keyPoints: [] as string[],
@@ -94,10 +95,18 @@ export default function AITutorScreen() {
       setChatMessages((prev) => {
         const existingIds = new Set(prev.map((msg) => msg.id));
         const uniqueNew = newMessages.filter((msg) => !existingIds.has(msg.id));
-        return [...prev, ...uniqueNew];
+        const combined = [...prev, ...uniqueNew];
+        
+        if (combined.length > MAX_MESSAGES) {
+          const initialMessage = combined[0];
+          const recentMessages = combined.slice(-MAX_MESSAGES + 1);
+          return [initialMessage, ...recentMessages];
+        }
+        
+        return combined;
       });
     }
-  }, [messages]);
+  }, [messages, MAX_MESSAGES]);
 
   useEffect(() => {
     setTimeout(() => {

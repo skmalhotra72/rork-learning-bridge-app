@@ -3,8 +3,8 @@ import { ChevronLeft } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -182,9 +182,12 @@ export default function BadgesScreen() {
           </Pressable>
         </View>
 
-        <ScrollView style={styles.badgesContainer}>
-          {Object.entries(categories).map(([category, badges]) => (
-            <View key={category} style={styles.categorySection}>
+        <FlatList
+          style={styles.badgesContainer}
+          data={Object.entries(categories)}
+          keyExtractor={([category]) => category}
+          renderItem={({ item: [category, badges] }) => (
+            <View style={styles.categorySection}>
               <Text style={styles.categoryTitle}>
                 {getCategoryName(category)}
               </Text>
@@ -248,9 +251,8 @@ export default function BadgesScreen() {
                 })}
               </View>
             </View>
-          ))}
-
-          {Object.keys(categories).length === 0 && (
+          )}
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>🏆</Text>
               <Text style={styles.emptyText}>
@@ -259,8 +261,17 @@ export default function BadgesScreen() {
                   : "No badges available"}
               </Text>
             </View>
-          )}
-        </ScrollView>
+          }
+          initialNumToRender={3}
+          maxToRenderPerBatch={2}
+          windowSize={5}
+          removeClippedSubviews={true}
+          getItemLayout={(_, index) => ({
+            length: 200,
+            offset: 200 * index,
+            index,
+          })}
+        />
       </SafeAreaView>
     </View>
   );

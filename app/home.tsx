@@ -43,21 +43,25 @@ export default function HomeScreen() {
         return;
       }
 
-      await refreshData();
-
       if (authUser) {
-        console.log("Loading subject progress for user:", authUser.id);
-        const { data: progressData, error: progressError } = await supabase
-          .from("subject_progress")
-          .select("*")
-          .eq("user_id", authUser.id);
+        console.log("Loading dashboard data in parallel for user:", authUser.id);
+        
+        const [, progressResult] = await Promise.all([
+          refreshData(),
+          supabase
+            .from("subject_progress")
+            .select("*")
+            .eq("user_id", authUser.id)
+        ]);
 
-        if (progressError) {
-          console.error("Error loading subject progress:", progressError);
+        if (progressResult.error) {
+          console.error("Error loading subject progress:", progressResult.error);
         } else {
-          console.log("Loaded subject progress:", progressData?.length || 0, "subjects");
-          setSubjectProgress(progressData || []);
+          console.log("Loaded subject progress:", progressResult.data?.length || 0, "subjects");
+          setSubjectProgress(progressResult.data || []);
         }
+      } else {
+        await refreshData();
       }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
