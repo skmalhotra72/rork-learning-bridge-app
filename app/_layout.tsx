@@ -23,6 +23,7 @@ function RootLayoutNav() {
       <Stack.Screen name="language-selection" options={{ headerShown: false }} />
       <Stack.Screen name="subject-selection" options={{ headerShown: false }} />
       <Stack.Screen name="subject-details" options={{ headerShown: false }} />
+      <Stack.Screen name="chapter-selection" options={{ headerShown: false }} />
       <Stack.Screen name="profile-confirmation" options={{ headerShown: false }} />
       <Stack.Screen name="home" options={{ headerShown: false }} />
       <Stack.Screen name="progress" options={{ headerShown: false }} />

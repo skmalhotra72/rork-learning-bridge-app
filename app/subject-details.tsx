@@ -17,6 +17,8 @@ import Colors from "@/constants/colors";
 import { CHAPTERS, getConfidenceLabel, SUBJECTS } from "@/constants/types";
 import type { SubjectDetails, SubjectType } from "@/constants/types";
 import { useUser } from "@/contexts/UserContext";
+import { getSubjectsForGrade } from "@/services/contentLibrary";
+import type { CBSESubject } from "@/services/contentLibrary";
 
 export default function SubjectDetailsScreen() {
   const router = useRouter();
@@ -30,6 +32,7 @@ export default function SubjectDetailsScreen() {
   const [subjectDetailsMap, setSubjectDetailsMap] = useState<
     Map<SubjectType, SubjectDetails>
   >(new Map());
+  const [cbseSubjects, setCbseSubjects] = useState<CBSESubject[]>([]);
 
   const selectedSubjects = user?.selectedSubjects || [];
   const currentSubjectId = selectedSubjects[currentIndex];
@@ -53,6 +56,21 @@ export default function SubjectDetailsScreen() {
     }
   }, [user?.subjectDetails]);
 
+  useEffect(() => {
+    loadCBSESubjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadCBSESubjects = async () => {
+    try {
+      const gradeNum = user?.grade ? parseInt(user.grade) : 10;
+      const subjects = await getSubjectsForGrade(gradeNum);
+      setCbseSubjects(subjects);
+    } catch (error) {
+      console.error('Error loading CBSE subjects:', error);
+    }
+  };
+
   const updateCurrentDetails = (updates: Partial<SubjectDetails>) => {
     const updated = { ...currentDetails, ...updates };
     setSubjectDetailsMap((prev) => new Map(prev).set(currentSubjectId, updated));
@@ -67,12 +85,18 @@ export default function SubjectDetailsScreen() {
     await updateSubjectDetails(currentDetails);
 
     if (isLastSubject) {
+      const selectedCbseSubjects = cbseSubjects.filter(cbseSubj => 
+        selectedSubjects.includes(cbseSubj.subject_code as SubjectType)
+      );
+      
       router.push({
-        pathname: "/profile-confirmation" as any,
+        pathname: "/chapter-selection" as any,
         params: {
+          selectedGrade: user?.grade || '10',
           schoolMedium,
           preferredLanguage,
-          allowCodeMixing: allowCodeMixing.toString()
+          allowCodeMixing: allowCodeMixing.toString(),
+          selectedSubjects: JSON.stringify(selectedCbseSubjects)
         }
       });
     } else {
