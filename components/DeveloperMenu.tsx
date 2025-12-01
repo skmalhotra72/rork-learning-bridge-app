@@ -9,7 +9,8 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-import { X, Play, Trash2, RefreshCw, Database, Wifi, WifiOff } from 'lucide-react-native';
+import { X, Play, Trash2, RefreshCw, Database, Wifi, WifiOff, ShieldCheck } from 'lucide-react-native';
+import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useUser } from '@/contexts/UserContext';
@@ -310,6 +311,21 @@ export default function DeveloperMenu({ visible, onClose }: DeveloperMenuProps) 
             >
               <Database size={20} color={Colors.accent} />
               <Text style={styles.buttonText}>Get Full Diagnostics</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                pressed && styles.buttonPressed
+              ]}
+              onPress={() => {
+                onClose();
+                router.push('/database-check');
+              }}
+              disabled={loading}
+            >
+              <ShieldCheck size={20} color="#8B5CF6" />
+              <Text style={styles.buttonText}>Database Integrity Check</Text>
             </Pressable>
           </View>
 
