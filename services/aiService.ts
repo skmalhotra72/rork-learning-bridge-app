@@ -22,15 +22,15 @@ export interface AILearningContext {
     success_rate?: number;
     status?: string;
   };
-  weak_concepts?: Array<{
+  weak_concepts?: {
     concept_name: string;
     mastery_level: number;
-  }>;
-  recent_mistakes?: Array<{
+  }[];
+  recent_mistakes?: {
     question: string;
     student_answer: string;
     correct_answer: string;
-  }>;
+  }[];
   overall_stats?: {
     current_level?: number;
     total_xp?: number;
@@ -221,7 +221,7 @@ export interface SendAIMessageOptions {
   chapterId?: string | null;
   sessionId?: string;
   agentType?: 'learning_coach' | 'doubt_solver' | 'practice_generator' | 'progress_analyst';
-  conversationHistory?: Array<{ role: string; content: string }>;
+  conversationHistory?: { role: string; content: string }[];
   subjectName?: string;
 }
 
@@ -357,7 +357,7 @@ const simulateAIResponse = async (
 const callAIAPI = async (
   userMessage: string,
   systemPrompt: string,
-  conversationHistory: Array<{ role: string; content: string }>,
+  conversationHistory: { role: string; content: string }[],
   context: AILearningContext
 ): Promise<string> => {
   console.log('=== CHECKING API KEY ===');

@@ -45,8 +45,8 @@ export const initializeChapterProgress = async (
       .insert({
         user_id: userId,
         chapter_id: chapterId,
-        marked_completed: options.markedCompleted || false,
-        marked_difficult: options.markedDifficult || false,
+        is_completed: options.markedCompleted || false,
+        is_difficult: options.markedDifficult || false,
         confidence_level: options.confidence || 5,
         study_time_minutes: 0,
         last_studied: options.markedCompleted ? new Date().toISOString() : null,
@@ -169,8 +169,8 @@ export const getChapterProgressSummary = async (
       chapter_id: p.chapter_id,
       chapter_number: p.chapter?.chapter_number,
       chapter_title: p.chapter?.chapter_title,
-      marked_completed: p.marked_completed,
-      marked_difficult: p.marked_difficult,
+      marked_completed: p.is_completed || false,
+      marked_difficult: p.is_difficult || false,
       confidence_level: p.confidence_level,
       study_time_minutes: p.study_time_minutes,
       last_studied: p.last_studied,
@@ -193,8 +193,8 @@ export const bulkInitializeChapters = async (
     const records = chapters.map(chapter => ({
       user_id: userId,
       chapter_id: chapter.chapterId,
-      marked_completed: chapter.completed,
-      marked_difficult: chapter.difficult,
+      is_completed: chapter.completed,
+      is_difficult: chapter.difficult,
       confidence_level: chapter.confidence,
       study_time_minutes: 0,
       last_studied: chapter.completed ? new Date().toISOString() : null,
@@ -254,8 +254,8 @@ export const updateChapterProgress = async (
   userId: string,
   chapterId: string,
   updates: Partial<{
-    marked_completed: boolean;
-    marked_difficult: boolean;
+    is_completed: boolean;
+    is_difficult: boolean;
     confidence_level: number;
     study_time_minutes: number;
     last_studied: string;

@@ -91,8 +91,8 @@ export const getDashboardData = async (userId: string): Promise<CompleteDashboar
 
     const progress = progressData || [];
 
-    const completed = progress.filter(p => p.marked_completed).length;
-    const inProgress = progress.filter(p => !p.marked_completed && p.last_studied).length;
+    const completed = progress.filter(p => p.is_completed || p.confidence_level >= 90).length;
+    const inProgress = progress.filter(p => !p.is_completed && p.confidence_level < 90 && p.last_studied).length;
     const mastered = progress.filter(p => (p.confidence_level || 0) >= 80).length;
     const totalStudyMinutes = 0;
 
@@ -132,9 +132,10 @@ export const getDashboardData = async (userId: string): Promise<CompleteDashboar
 
       const subj = subjectMap.get(subject.id);
       subj.total_chapters++;
-      if (p.marked_completed) subj.completed_chapters++;
-      if (!p.marked_completed && p.last_studied) subj.in_progress_chapters++;
-      if (p.marked_difficult) subj.difficult_chapters_count++;
+      const isCompleted = p.is_completed || p.confidence_level >= 90;
+      if (isCompleted) subj.completed_chapters++;
+      if (!isCompleted && p.last_studied) subj.in_progress_chapters++;
+      if (p.is_difficult || p.confidence_level < 40) subj.difficult_chapters_count++;
       subj.total_confidence += p.confidence_level || 0;
       if (!subj.last_studied_at || (p.last_studied && p.last_studied > subj.last_studied_at)) {
         subj.last_studied_at = p.last_studied;
@@ -168,7 +169,7 @@ export const getDashboardData = async (userId: string): Promise<CompleteDashboar
         subject_code: p.chapter?.book?.subject?.subject_code || '',
         icon_emoji: p.chapter?.book?.subject?.icon_emoji || '📚',
         activity_type: 'study' as const,
-        completion_percentage: p.marked_completed ? 100 : (p.confidence_level || 0),
+        completion_percentage: (p.is_completed || p.confidence_level >= 90) ? 100 : (p.confidence_level || 0),
         mastery_score: p.confidence_level,
         time_spent_minutes: 0,
         last_studied_at: p.last_studied,
@@ -356,8 +357,8 @@ export const getTodayStudySummary = async (userId: string): Promise<TodayStudySu
 };
 
 export interface ProgressUpdate {
-  marked_completed?: boolean;
-  marked_difficult?: boolean;
+  is_completed?: boolean;
+  is_difficult?: boolean;
   confidence_level?: number;
 }
 
