@@ -55,9 +55,20 @@ CREATE TABLE IF NOT EXISTS cbse_subjects (
 );
 
 -- Add missing columns if they don't exist (safe for re-runs)
-ALTER TABLE cbse_subjects ADD COLUMN IF NOT EXISTS applicable_grades TEXT;
-ALTER TABLE cbse_subjects ADD COLUMN IF NOT EXISTS color TEXT;
-ALTER TABLE cbse_subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'cbse_subjects' AND column_name = 'applicable_grades') THEN
+    ALTER TABLE cbse_subjects ADD COLUMN applicable_grades TEXT;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'cbse_subjects' AND column_name = 'color') THEN
+    ALTER TABLE cbse_subjects ADD COLUMN color TEXT;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'cbse_subjects' AND column_name = 'is_active') THEN
+    ALTER TABLE cbse_subjects ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+  END IF;
+END $$;
 
 -- Insert default subjects
 INSERT INTO cbse_subjects (subject_code, subject_name, applicable_grades, icon_emoji, description, color, is_active) VALUES
