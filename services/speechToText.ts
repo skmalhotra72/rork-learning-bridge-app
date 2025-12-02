@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 
 export interface SpeechToTextOptions {
   audioUri: string;
@@ -19,73 +20,69 @@ export const transcribeAudio = async (
     console.log('Audio URI:', options.audioUri);
     console.log('Language:', options.language || 'en');
 
+    console.log('📤 Sending audio to Rork AI transcription...');
+
+    let base64Audio: string;
+    
     if (Platform.OS === 'web') {
       const response = await fetch(options.audioUri);
       const blob = await response.blob();
+      const reader = new FileReader();
       
-      const formData = new FormData();
-      formData.append('file', blob, 'audio.webm');
-      formData.append('model', 'whisper-1');
-      formData.append('language', options.language || 'en');
-
-      const apiResponse = await fetch('https://api.rork.app/v1/audio/transcriptions', {
-        method: 'POST',
-        body: formData,
+      base64Audio = await new Promise((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
       });
-
-      if (!apiResponse.ok) {
-        throw new Error(`Transcription API error: ${apiResponse.status}`);
-      }
-
-      const data = await apiResponse.json();
-      return {
-        success: true,
-        text: data.text || data.transcription,
-      };
     } else {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: options.audioUri,
-        type: 'audio/m4a',
-        name: 'audio.m4a',
-      } as any);
-      formData.append('model', 'whisper-1');
-      formData.append('language', options.language || 'en');
-
-      console.log('📤 Sending audio to transcription API...');
-
-      const apiResponse = await fetch('https://api.rork.app/v1/audio/transcriptions', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      base64Audio = await FileSystem.readAsStringAsync(options.audioUri, {
+        encoding: 'base64',
       });
-
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        console.error('❌ API Error:', apiResponse.status, errorText);
-        throw new Error(`Transcription failed: ${apiResponse.status}`);
-      }
-
-      const data = await apiResponse.json();
-      
-      if (!data.text && !data.transcription) {
-        throw new Error('No transcription in response');
-      }
-
-      console.log('✅ Transcription successful');
-      
-      return {
-        success: true,
-        text: data.text || data.transcription,
-      };
     }
+
+    const response = await fetch('https://api.rork.app/transcribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        audio: base64Audio,
+        language: options.language || 'en',
+        mimeType: Platform.OS === 'web' ? 'audio/webm' : 'audio/m4a',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('❌ Transcription API error:', response.status, errorData);
+      throw new Error(`Transcription failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.text && !data.transcription) {
+      console.error('❌ No transcription in response');
+      throw new Error('No transcription received');
+    }
+
+    const transcribedText = data.text || data.transcription;
+    console.log('✅ Transcription successful');
+    console.log('Transcribed text:', transcribedText);
+    
+    return {
+      success: true,
+      text: transcribedText,
+    };
   } catch (error) {
     console.error('❌ Transcription error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error details:', errorMessage);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     };
   }
 };
