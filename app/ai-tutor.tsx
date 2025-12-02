@@ -111,15 +111,26 @@ export default function AITutorScreen() {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognitionInstance = new SpeechRecognition();
-        recognitionInstance.continuous = false;
-        recognitionInstance.interimResults = false;
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
         recognitionInstance.lang = languageSettings?.preferred_tutoring_language === 'Hindi' ? 'hi-IN' : 'en-US';
         
         recognitionInstance.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          console.log('✅ Speech recognized:', transcript);
-          setInputText(transcript);
-          setIsRecording(false);
+          let interimTranscript = '';
+          let finalTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + ' ';
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          
+          const currentText = (finalTranscript + interimTranscript).trim();
+          console.log('🎤 Speech recognized (interim):', currentText);
+          setInputText(currentText);
         };
         
         recognitionInstance.onerror = (event: any) => {
@@ -653,6 +664,7 @@ export default function AITutorScreen() {
       
       setAudioRecording(recording);
       setIsRecording(true);
+      setInputText('🎤 Listening...');
       console.log('✅ Recording started');
 
     } catch (error) {
@@ -723,12 +735,6 @@ export default function AITutorScreen() {
 
       console.log('✅ Transcription successful:', result.text);
       setInputText(result.text);
-
-      Alert.alert(
-        '🎤 Voice Input',
-        `Transcribed: "${result.text}"\n\nReview and tap send to submit your question.`,
-        [{ text: 'OK' }]
-      );
 
     } catch (error) {
       console.error('❌ Transcription failed:', error);
