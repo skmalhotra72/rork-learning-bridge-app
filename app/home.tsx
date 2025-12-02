@@ -62,10 +62,11 @@ export default function HomeScreen() {
         ]);
 
         if (progressResult.error) {
-          console.error("Error loading subject progress:", JSON.stringify(progressResult.error));
+          const errorMsg = progressResult.error.message || JSON.stringify(progressResult.error);
+          console.error("Error loading subject progress:", errorMsg);
           Alert.alert(
             'Database Error',
-            'Error loading subjects. Please check the database setup.',
+            `Error loading subjects: ${errorMsg}`,
             [{ text: 'OK' }]
           );
         } else {
@@ -86,7 +87,13 @@ export default function HomeScreen() {
         await refreshData();
       }
     } catch (error) {
-      console.error("Error loading dashboard data:", error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error("Error loading dashboard data:", errorMsg);
+      Alert.alert(
+        'Error',
+        `Failed to load dashboard: ${errorMsg}. Please check your database setup.`,
+        [{ text: 'OK' }]
+      );
     }
   }, [refreshData, authUser]);
 

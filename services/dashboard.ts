@@ -103,15 +103,17 @@ export const getSubjectProgress = async (userId: string): Promise<SubjectProgres
       .order('subject_name');
 
     if (error) {
-      console.error('Get subject progress error:', error);
-      return [];
+      const errorMsg = error.message || JSON.stringify(error);
+      console.error('Get subject progress error:', errorMsg);
+      throw new Error(`Failed to load subject progress: ${errorMsg}`);
     }
 
     console.log(`✅ Found progress for ${data?.length || 0} subjects`);
     return (data as SubjectProgressView[]) || [];
 
   } catch (error) {
-    console.error('Get subject progress exception:', error);
+    const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error('Get subject progress exception:', errorMsg);
     return [];
   }
 };
@@ -126,14 +128,16 @@ export const getRecentActivity = async (userId: string, limit: number = 10): Pro
       .limit(limit);
 
     if (error) {
-      console.error('Get recent activity error:', error);
-      return [];
+      const errorMsg = error.message || JSON.stringify(error);
+      console.error('Get recent activity error:', errorMsg);
+      throw new Error(`Failed to load recent activity: ${errorMsg}`);
     }
 
     return (data as RecentActivity[]) || [];
 
   } catch (error) {
-    console.error('Get recent activity exception:', error);
+    const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error('Get recent activity exception:', errorMsg);
     return [];
   }
 };
@@ -251,14 +255,16 @@ export const getDashboardSummary = async (userId: string): Promise<DashboardSumm
       .single();
 
     if (error) {
-      console.error('Get dashboard summary error:', error);
-      return null;
+      const errorMsg = error.message || JSON.stringify(error);
+      console.error('Get dashboard summary error:', errorMsg);
+      throw new Error(`Failed to load dashboard summary: ${errorMsg}`);
     }
 
     return data as DashboardSummary;
 
   } catch (error) {
-    console.error('Get dashboard summary exception:', error);
+    const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error('Get dashboard summary exception:', errorMsg);
     return null;
   }
 };
