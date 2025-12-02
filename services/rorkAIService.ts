@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { getTutorInfo } from '@/constants/tutorNames';
 import { AILearningContext } from './aiService';
+import { generateText } from '@rork-ai/toolkit-sdk';
 
 const generateSessionId = () => {
   return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -226,46 +227,27 @@ const callRorkAI = async (
   systemPrompt: string,
   conversationHistory: { role: string; content: string }[]
 ): Promise<string> => {
-  console.log('=== CALLING RORK AI API ===');
+  console.log('=== CALLING RORK AI SDK ===');
   
   const messages = [
-    { role: 'system', content: systemPrompt },
-    ...conversationHistory.slice(-10),
-    { role: 'user', content: userMessage },
+    { role: 'assistant' as const, content: systemPrompt },
+    ...conversationHistory.slice(-10).map(msg => ({
+      role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: msg.content
+    })),
+    { role: 'user' as const, content: userMessage },
   ];
 
   try {
-    console.log('Making request to Rork AI...');
+    console.log('Calling Rork AI generateText...');
     console.log('Messages count:', messages.length);
     console.log('User message preview:', userMessage.substring(0, 100));
 
-    const response = await fetch('https://api.rork.app/v1/ai/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1500,
-        model: 'gpt-4o-mini',
-      }),
-    });
+    const aiResponse = await generateText({ messages });
 
-    console.log('Rork AI API response status:', response.status);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('❌ Rork AI API error:', response.status, errorData);
-      throw new Error(`Rork AI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const aiResponse = data.response || data.message || data.content;
-
-    if (!aiResponse) {
+    if (!aiResponse || typeof aiResponse !== 'string') {
       console.error('❌ No response content from Rork AI');
-      console.error('Response data:', JSON.stringify(data));
+      console.error('Response data:', aiResponse);
       throw new Error('No response from Rork AI');
     }
 
@@ -276,7 +258,7 @@ const callRorkAI = async (
     return aiResponse;
 
   } catch (error) {
-    console.error('❌ Rork AI API call failed:', error);
+    console.error('❌ Rork AI call failed:', error);
     
     if (error instanceof TypeError && error.message.includes('network')) {
       console.error('Network error - check internet connection');
