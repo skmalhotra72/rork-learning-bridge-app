@@ -45,20 +45,33 @@ CREATE TABLE IF NOT EXISTS cbse_subjects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_code TEXT NOT NULL UNIQUE,
   subject_name TEXT NOT NULL,
-  icon_emoji TEXT DEFAULT '📚',
+  applicable_grades TEXT,
   description TEXT,
+  icon_emoji TEXT DEFAULT '📚',
+  color TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add missing columns if they don't exist (safe for re-runs)
+ALTER TABLE cbse_subjects ADD COLUMN IF NOT EXISTS applicable_grades TEXT;
+ALTER TABLE cbse_subjects ADD COLUMN IF NOT EXISTS color TEXT;
+ALTER TABLE cbse_subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
 -- Insert default subjects
-INSERT INTO cbse_subjects (subject_code, subject_name, icon_emoji, description) VALUES
-  ('MATH', 'Mathematics', '🔢', 'Mathematics curriculum'),
-  ('SCIENCE', 'Science', '🔬', 'Science curriculum'),
-  ('ENGLISH', 'English', '📖', 'English language and literature'),
-  ('HINDI', 'Hindi', '📝', 'Hindi language'),
-  ('SOCIAL', 'Social Science', '🌍', 'History, Geography, Civics, Economics')
-ON CONFLICT (subject_code) DO NOTHING;
+INSERT INTO cbse_subjects (subject_code, subject_name, applicable_grades, icon_emoji, description, color, is_active) VALUES
+  ('MATH', 'Mathematics', '6,7,8,9,10,11,12', '🔢', 'Mathematics curriculum', '#3B82F6', TRUE),
+  ('SCIENCE', 'Science', '6,7,8,9,10,11,12', '🔬', 'Science curriculum', '#10B981', TRUE),
+  ('ENGLISH', 'English', '6,7,8,9,10,11,12', '📖', 'English language and literature', '#F59E0B', TRUE),
+  ('HINDI', 'Hindi', '6,7,8,9,10,11,12', '📝', 'Hindi language', '#EF4444', TRUE),
+  ('SOCIAL', 'Social Science', '6,7,8,9,10,11,12', '🌍', 'History, Geography, Civics, Economics', '#8B5CF6', TRUE)
+ON CONFLICT (subject_code) DO UPDATE SET
+  applicable_grades = EXCLUDED.applicable_grades,
+  icon_emoji = EXCLUDED.icon_emoji,
+  description = EXCLUDED.description,
+  color = EXCLUDED.color,
+  is_active = EXCLUDED.is_active;
 
 -- ============================================
 -- 3. CBSE BOOKS TABLE
