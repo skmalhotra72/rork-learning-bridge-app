@@ -2,184 +2,253 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
+  StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
+  Alert,
 } from 'react-native';
-import { Stack } from 'expo-router';
-import { runDatabaseIntegrityCheck, IntegrityReport, CheckResult } from '@/utils/databaseIntegrityCheck';
-import { AlertCircle, CheckCircle2, AlertTriangle, Play } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+
+import { supabase } from '@/lib/supabase';
+import Colors from '@/constants/colors';
+
+interface TestResult {
+  name: string;
+  status: 'pending' | 'success' | 'error';
+  message: string;
+  details?: string;
+}
 
 export default function DatabaseCheckScreen() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [report, setReport] = useState<IntegrityReport | null>(null);
+  const router = useRouter();
+  const [testing, setTesting] = useState(false);
+  const [results, setResults] = useState<TestResult[]>([]);
 
-  const runCheck = async () => {
-    setIsRunning(true);
-    setReport(null);
-    
+  const runDatabaseTests = async () => {
+    setTesting(true);
+    const testResults: TestResult[] = [];
+
+    const updateResult = (result: TestResult) => {
+      testResults.push(result);
+      setResults([...testResults]);
+    };
+
+    updateResult({
+      name: 'Supabase Connection',
+      status: 'pending',
+      message: 'Testing connection...',
+    });
+
     try {
-      const result = await runDatabaseIntegrityCheck();
-      setReport(result);
+      const { error } = await supabase.from('cbse_grades').select('id').limit(1);
+      
+      if (error) {
+        updateResult({
+          name: 'Supabase Connection',
+          status: 'error',
+          message: 'Connection failed',
+          details: error.message,
+        });
+      } else {
+        updateResult({
+          name: 'Supabase Connection',
+          status: 'success',
+          message: 'Connected successfully',
+        });
+      }
     } catch (error) {
-      console.error('Check failed:', error);
-    } finally {
-      setIsRunning(false);
+      updateResult({
+        name: 'Supabase Connection',
+        status: 'error',
+        message: 'Connection error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    const tables = [
+      'cbse_grades',
+      'cbse_subjects',
+      'cbse_books',
+      'cbse_chapters',
+      'student_chapter_progress',
+      'user_stats',
+      'profiles',
+      'subject_progress',
+    ];
+
+    for (const table of tables) {
+      try {
+        const { data, error } = await supabase.from(table).select('id').limit(1);
+        
+        if (error) {
+          updateResult({
+            name: `Table: ${table}`,
+            status: 'error',
+            message: 'Table query failed',
+            details: error.message,
+          });
+        } else {
+          updateResult({
+            name: `Table: ${table}`,
+            status: 'success',
+            message: `Exists (${data?.length || 0} rows checked)`,
+          });
+        }
+      } catch (error) {
+        updateResult({
+          name: `Table: ${table}`,
+          status: 'error',
+          message: 'Query error',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    const views = [
+      'student_subject_progress',
+      'student_recent_activity',
+      'student_dashboard_summary',
+    ];
+
+    for (const view of views) {
+      try {
+        const { data, error } = await supabase.from(view).select('*').limit(1);
+        
+        if (error) {
+          updateResult({
+            name: `View: ${view}`,
+            status: 'error',
+            message: 'View query failed',
+            details: error.message,
+          });
+        } else {
+          updateResult({
+            name: `View: ${view}`,
+            status: 'success',
+            message: `Exists (${data?.length || 0} rows)`,
+          });
+        }
+      } catch (error) {
+        updateResult({
+          name: `View: ${view}`,
+          status: 'error',
+          message: 'Query error',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    setTesting(false);
+
+    const hasErrors = testResults.some(r => r.status === 'error');
+    if (hasErrors) {
+      Alert.alert(
+        '⚠️ Database Setup Required',
+        'Some database tables or views are missing. Please run the database-setup.sql script in your Supabase SQL Editor.\n\nSee DATABASE_SETUP_GUIDE.md for instructions.',
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert(
+        '✅ All Tests Passed!',
+        'Your database is set up correctly and ready to use.',
+        [{ text: 'Great!' }]
+      );
     }
   };
 
-  const getStatusColor = (status: 'pass' | 'fail' | 'warning') => {
+  const getStatusIcon = (status: TestResult['status']) => {
     switch (status) {
-      case 'pass':
+      case 'success':
+        return '✅';
+      case 'error':
+        return '❌';
+      case 'pending':
+        return '⏳';
+    }
+  };
+
+  const getStatusColor = (status: TestResult['status']) => {
+    switch (status) {
+      case 'success':
         return '#10B981';
-      case 'fail':
+      case 'error':
         return '#EF4444';
-      case 'warning':
+      case 'pending':
         return '#F59E0B';
     }
   };
 
-  const getStatusIcon = (status: 'pass' | 'fail' | 'warning') => {
-    switch (status) {
-      case 'pass':
-        return CheckCircle2;
-      case 'fail':
-        return AlertCircle;
-      case 'warning':
-        return AlertTriangle;
-    }
-  };
-
-  const groupedChecks = report?.checks.reduce((acc, check) => {
-    if (!acc[check.category]) {
-      acc[check.category] = [];
-    }
-    acc[check.category].push(check);
-    return acc;
-  }, {} as Record<string, CheckResult[]>);
-
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: 'Database Integrity Check' }} />
-      
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Database Integrity Check</Text>
-          <Text style={styles.subtitle}>
-            Comprehensive verification of all database components
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Database Check</Text>
+      </View>
+
+      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoEmoji}>🗄️</Text>
+          <Text style={styles.infoTitle}>Database Status Checker</Text>
+          <Text style={styles.infoText}>
+            This tool checks if your Supabase database is properly set up.
+            {'\n\n'}
+            If you see errors, please run the SQL scripts in your Supabase SQL Editor:
+            {'\n'}• database-setup.sql
+            {'\n'}• database-sample-data.sql
           </Text>
-          
-          <TouchableOpacity
-            style={[styles.runButton, isRunning && styles.runButtonDisabled]}
-            onPress={runCheck}
-            disabled={isRunning}
-          >
-            {isRunning ? (
-              <>
-                <ActivityIndicator color="#fff" size="small" style={styles.buttonIcon} />
-                <Text style={styles.runButtonText}>Running Checks...</Text>
-              </>
-            ) : (
-              <>
-                <Play size={20} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.runButtonText}>Run Full Check</Text>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
 
-        {report && (
-          <>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Summary</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Overall Status:</Text>
-                <Text
-                  style={[
-                    styles.summaryStatus,
-                    { color: getStatusColor(report.overallStatus) },
-                  ]}
-                >
-                  {report.overallStatus.toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Total Checks:</Text>
-                <Text style={styles.summaryValue}>{report.summary.total}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>✅ Passed:</Text>
-                <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-                  {report.summary.passed}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>❌ Failed:</Text>
-                <Text style={[styles.summaryValue, { color: '#EF4444' }]}>
-                  {report.summary.failed}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>⚠️ Warnings:</Text>
-                <Text style={[styles.summaryValue, { color: '#F59E0B' }]}>
-                  {report.summary.warnings}
-                </Text>
-              </View>
-              <Text style={styles.timestamp}>
-                Timestamp: {new Date(report.timestamp).toLocaleString()}
-              </Text>
-            </View>
+        <TouchableOpacity
+          style={[styles.testButton, testing && styles.testButtonDisabled]}
+          onPress={runDatabaseTests}
+          disabled={testing}
+        >
+          {testing ? (
+            <>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={styles.testButtonText}>Running Tests...</Text>
+            </>
+          ) : (
+            <Text style={styles.testButtonText}>🔍 Run Database Tests</Text>
+          )}
+        </TouchableOpacity>
 
-            {groupedChecks && Object.entries(groupedChecks).map(([category, checks]) => {
-              const passed = checks.filter(c => c.status === 'pass').length;
-              const failed = checks.filter(c => c.status === 'fail').length;
-              const warnings = checks.filter(c => c.status === 'warning').length;
-
-              return (
-                <View key={category} style={styles.categoryCard}>
-                  <View style={styles.categoryHeader}>
-                    <Text style={styles.categoryTitle}>{category}</Text>
-                    <Text style={styles.categoryStats}>
-                      {passed}/{checks.length} passed
-                      {failed > 0 && ` • ${failed} failed`}
-                      {warnings > 0 && ` • ${warnings} warnings`}
+        {results.length > 0 && (
+          <View style={styles.resultsContainer}>
+            <Text style={styles.resultsTitle}>Test Results</Text>
+            {results.map((result, index) => (
+              <View key={index} style={styles.resultCard}>
+                <View style={styles.resultHeader}>
+                  <Text style={styles.resultIcon}>{getStatusIcon(result.status)}</Text>
+                  <View style={styles.resultInfo}>
+                    <Text style={styles.resultName}>{result.name}</Text>
+                    <Text
+                      style={[
+                        styles.resultMessage,
+                        { color: getStatusColor(result.status) },
+                      ]}
+                    >
+                      {result.message}
                     </Text>
+                    {result.details && (
+                      <Text style={styles.resultDetails}>{result.details}</Text>
+                    )}
                   </View>
-
-                  {checks.map((check, index) => {
-                    const Icon = getStatusIcon(check.status);
-                    const color = getStatusColor(check.status);
-
-                    return (
-                      <View key={index} style={styles.checkItem}>
-                        <Icon size={18} color={color} style={styles.checkIcon} />
-                        <View style={styles.checkContent}>
-                          <Text style={styles.checkName}>{check.name}</Text>
-                          <Text style={styles.checkMessage}>{check.message}</Text>
-                          {check.details && (
-                            <View style={styles.detailsBox}>
-                              <Text style={styles.detailsText}>
-                                {JSON.stringify(check.details, null, 2)}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })}
                 </View>
-              );
-            })}
-          </>
+              </View>
+            ))}
+          </View>
         )}
 
-        {!report && !isRunning && (
+        {results.length === 0 && !testing && (
           <View style={styles.emptyState}>
-            <AlertCircle size={48} color="#9CA3AF" />
+            <Text style={styles.emptyEmoji}>🔍</Text>
             <Text style={styles.emptyText}>
-              Click &quot;Run Full Check&quot; to start the database integrity verification
+              Click the button above to run database tests
             </Text>
           </View>
         )}
@@ -191,167 +260,131 @@ export default function DatabaseCheckScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.background,
   },
-  scrollView: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: Colors.cardBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    fontSize: 16,
+    color: Colors.primary,
+    fontWeight: '600' as const,
+    marginRight: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: Colors.text,
+  },
+  content: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
   },
-  header: {
+  infoCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+  infoEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: Colors.text,
     marginBottom: 8,
   },
-  subtitle: {
+  infoText: {
     fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  runButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+  testButton: {
+    backgroundColor: Colors.primary,
     borderRadius: 12,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    marginBottom: 24,
   },
-  runButtonDisabled: {
-    backgroundColor: '#93C5FD',
+  testButtonDisabled: {
+    opacity: 0.6,
   },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  runButtonText: {
-    color: '#fff',
+  testButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '600' as const,
   },
-  summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  summaryStatus: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  categoryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  categoryHeader: {
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  categoryTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  categoryStats: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  checkItem: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F9FAFB',
-  },
-  checkIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  checkContent: {
-    flex: 1,
-  },
-  checkName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  checkMessage: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-  },
-  detailsBox: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 12,
+  resultsContainer: {
     marginTop: 8,
   },
-  detailsText: {
-    fontSize: 11,
-    color: '#4B5563',
-    fontFamily: 'monospace',
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  resultCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  resultIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  resultInfo: {
+    flex: 1,
+  },
+  resultName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  resultMessage: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    marginBottom: 4,
+  },
+  resultDetails: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontStyle: 'italic' as const,
   },
   emptyState: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
+    padding: 40,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
   },
   emptyText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 16,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    maxWidth: 280,
   },
 });
