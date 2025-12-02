@@ -1,6 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import { ArrowLeft, Send, ImagePlus, X, Mic } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -19,6 +20,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { sendAIMessage } from "@/services/aiService";
+import { transcribeAudio as transcribeAudioService } from "@/services/speechToText";
 import Colors from "@/constants/colors";
 import { useUser } from "@/contexts/UserContext";
 import { getTutorInfo, getTutorGreeting } from "@/constants/tutorNames";
@@ -75,6 +77,7 @@ export default function AITutorScreen() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
+  const [audioRecording, setAudioRecording] = useState<Audio.Recording | null>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -87,6 +90,18 @@ export default function AITutorScreen() {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         console.log('Camera permission not granted');
+      }
+
+      if (Platform.OS !== 'web') {
+        const audioStatus = await Audio.requestPermissionsAsync();
+        if (audioStatus.status !== 'granted') {
+          console.log('Audio permission not granted');
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
       }
     })();
   }, []);
@@ -578,7 +593,7 @@ export default function AITutorScreen() {
     );
   };
 
-  const handleVoiceInput = () => {
+  const handleVoiceInput = async () => {
     if (Platform.OS === 'web') {
       if (!recognition) {
         Alert.alert(
@@ -604,9 +619,123 @@ export default function AITutorScreen() {
         }
       }
     } else {
+      if (isRecording) {
+        await stopRecording();
+      } else {
+        await startRecording();
+      }
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      console.log('🎤 Requesting audio permissions...');
+      const permission = await Audio.requestPermissionsAsync();
+      
+      if (permission.status !== 'granted') {
+        Alert.alert(
+          'Microphone Permission Required',
+          'Please allow microphone access to use voice input.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      console.log('🎤 Starting recording...');
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      setAudioRecording(recording);
+      setIsRecording(true);
+      console.log('✅ Recording started');
+
+    } catch (error) {
+      console.error('❌ Failed to start recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!audioRecording) return;
+
+    try {
+      console.log('⏹️ Stopping recording...');
+      setIsRecording(false);
+      await audioRecording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      });
+      
+      const uri = audioRecording.getURI();
+      setAudioRecording(null);
+
+      if (!uri) {
+        Alert.alert('Error', 'No audio recorded. Please try again.');
+        return;
+      }
+
+      console.log('✅ Recording stopped, URI:', uri);
+      console.log('🔄 Transcribing audio...');
+
+      await transcribeAudio(uri);
+
+    } catch (error) {
+      console.error('❌ Failed to stop recording:', error);
+      Alert.alert('Error', 'Failed to process recording. Please try again.');
+      setAudioRecording(null);
+    }
+  };
+
+  const transcribeAudio = async (audioUri: string) => {
+    try {
+      console.log('=== TRANSCRIBING AUDIO ===');
+      console.log('Audio URI:', audioUri);
+
+      const language = languageSettings?.preferred_tutoring_language === 'Hindi' || 
+                       languageSettings?.preferred_tutoring_language === 'Hinglish' 
+        ? 'hi' 
+        : 'en';
+
+      console.log('Transcription language:', language);
+      console.log('🔄 Sending audio to transcription service...');
+
+      const result = await transcribeAudioService({
+        audioUri,
+        language,
+      });
+
+      if (!result.success || !result.text) {
+        console.error('❌ Transcription failed:', result.error);
+        Alert.alert(
+          'Transcription Error',
+          result.error || 'Could not transcribe audio. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      console.log('✅ Transcription successful:', result.text);
+      setInputText(result.text);
+
       Alert.alert(
         '🎤 Voice Input',
-        'Voice input is currently available on web browsers only. Please type your question instead.',
+        `Transcribed: "${result.text}"\n\nReview and tap send to submit your question.`,
+        [{ text: 'OK' }]
+      );
+
+    } catch (error) {
+      console.error('❌ Transcription failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'Transcription Error',
+        `Failed to transcribe audio: ${errorMessage}\n\nPlease try again or type your question.`,
         [{ text: 'OK' }]
       );
     }
