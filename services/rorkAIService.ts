@@ -158,7 +158,6 @@ export const sendRorkAIMessage = async (
 
     const {
       topicId = null,
-      chapterId = null,
       sessionId = generateSessionId(),
       agentType = 'learning_coach',
       conversationHistory = [],
