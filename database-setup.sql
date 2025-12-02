@@ -16,6 +16,15 @@ CREATE TABLE IF NOT EXISTS cbse_grades (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add description column if it doesn't exist (for existing tables)
+DO $ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'cbse_grades' AND column_name = 'description') THEN
+    ALTER TABLE cbse_grades ADD COLUMN description TEXT;
+  END IF;
+END $;
+
 -- Insert default grades
 INSERT INTO cbse_grades (grade_number, display_name, description) VALUES
   (6, 'Class 6', 'Grade 6 - Middle School'),
@@ -63,6 +72,19 @@ CREATE TABLE IF NOT EXISTS cbse_books (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(grade_id, subject_id)
 );
+
+-- Add missing columns if they don't exist
+DO $ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'cbse_books' AND column_name = 'book_code') THEN
+    ALTER TABLE cbse_books ADD COLUMN book_code TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name = 'cbse_books' AND column_name = 'publication_year') THEN
+    ALTER TABLE cbse_books ADD COLUMN publication_year INT;
+  END IF;
+END $;
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_cbse_books_grade ON cbse_books(grade_id);
