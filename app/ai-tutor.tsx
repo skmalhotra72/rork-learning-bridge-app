@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Send, ImagePlus, X } from "lucide-react-native";
+import { ArrowLeft, Send, ImagePlus, X, Mic } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -73,6 +73,8 @@ export default function AITutorScreen() {
 
   const [isAIResponding, setIsAIResponding] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -88,6 +90,46 @@ export default function AITutorScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = false;
+        recognitionInstance.interimResults = false;
+        recognitionInstance.lang = languageSettings?.preferred_tutoring_language === 'Hindi' ? 'hi-IN' : 'en-US';
+        
+        recognitionInstance.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          console.log('✅ Speech recognized:', transcript);
+          setInputText(transcript);
+          setIsRecording(false);
+        };
+        
+        recognitionInstance.onerror = (event: any) => {
+          console.error('❌ Speech recognition error:', event.error);
+          setIsRecording(false);
+          if (event.error === 'no-speech') {
+            Alert.alert('No Speech Detected', 'Please try again and speak clearly.');
+          } else if (event.error === 'not-allowed') {
+            Alert.alert('Microphone Access Denied', 'Please allow microphone access in your browser settings.');
+          } else {
+            Alert.alert('Speech Recognition Error', 'Failed to recognize speech. Please try again.');
+          }
+        };
+        
+        recognitionInstance.onend = () => {
+          console.log('Speech recognition ended');
+          setIsRecording(false);
+        };
+        
+        setRecognition(recognitionInstance);
+      } else {
+        console.log('⚠️ Speech recognition not supported in this browser');
+      }
+    }
+  }, [languageSettings]);
 
   useEffect(() => {
     void loadLanguageSettings();
@@ -536,6 +578,40 @@ export default function AITutorScreen() {
     );
   };
 
+  const handleVoiceInput = () => {
+    if (Platform.OS === 'web') {
+      if (!recognition) {
+        Alert.alert(
+          'Speech Recognition Not Available',
+          'Your browser does not support speech recognition. Please type your message instead.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      if (isRecording) {
+        recognition.stop();
+        setIsRecording(false);
+      } else {
+        try {
+          setIsRecording(true);
+          recognition.start();
+          console.log('🎤 Speech recognition started');
+        } catch (error) {
+          console.error('❌ Failed to start speech recognition:', error);
+          setIsRecording(false);
+          Alert.alert('Error', 'Failed to start speech recognition. Please try again.');
+        }
+      }
+    } else {
+      Alert.alert(
+        '🎤 Voice Input',
+        'Voice input is currently available on web browsers only. Please type your question instead.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   const isLoading = isAIResponding;
 
   return (
@@ -663,6 +739,19 @@ export default function AITutorScreen() {
             >
               <ImagePlus size={16} color={Colors.text} />
               <Text style={styles.quickButtonText}>📷 Image</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickButton,
+                isRecording && styles.quickButtonActive,
+                pressed && styles.quickButtonPressed,
+              ]}
+              onPress={handleVoiceInput}
+            >
+              <Mic size={16} color={isRecording ? Colors.error : Colors.text} />
+              <Text style={[styles.quickButtonText, isRecording && styles.quickButtonTextActive]}>
+                {isRecording ? '⏹️ Stop' : '🎤 Talk'}
+              </Text>
             </Pressable>
           </View>
 
@@ -864,6 +953,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600" as const,
     color: Colors.text,
+  },
+  quickButtonActive: {
+    backgroundColor: Colors.error + "20",
+    borderColor: Colors.error,
+  },
+  quickButtonTextActive: {
+    color: Colors.error,
   },
   inputContainer: {
     flexDirection: "row",
