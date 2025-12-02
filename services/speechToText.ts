@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
 
 export interface SpeechToTextOptions {
   audioUri: string;
@@ -18,41 +17,36 @@ export const transcribeAudio = async (
   try {
     console.log('=== TRANSCRIBING AUDIO WITH RORK AI ===');
     console.log('Audio URI:', options.audioUri);
-    console.log('Language:', options.language || 'en');
+    console.log('Language:', options.language || 'auto');
 
     console.log('📤 Sending audio to Rork AI transcription...');
 
-    let base64Audio: string;
+    const formData = new FormData();
     
     if (Platform.OS === 'web') {
       const response = await fetch(options.audioUri);
       const blob = await response.blob();
-      const reader = new FileReader();
-      
-      base64Audio = await new Promise((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      formData.append('audio', blob, 'recording.webm');
     } else {
-      base64Audio = await FileSystem.readAsStringAsync(options.audioUri, {
-        encoding: 'base64',
-      });
+      const uriParts = options.audioUri.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
+      const audioFile: any = {
+        uri: options.audioUri,
+        name: `recording.${fileType}`,
+        type: `audio/${fileType}`,
+      };
+      
+      formData.append('audio', audioFile);
+    }
+    
+    if (options.language) {
+      formData.append('language', options.language);
     }
 
-    const response = await fetch('https://api.rork.app/transcribe', {
+    const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        audio: base64Audio,
-        language: options.language || 'en',
-        mimeType: Platform.OS === 'web' ? 'audio/webm' : 'audio/m4a',
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
@@ -63,14 +57,15 @@ export const transcribeAudio = async (
 
     const data = await response.json();
     
-    if (!data.text && !data.transcription) {
+    if (!data.text) {
       console.error('❌ No transcription in response');
       throw new Error('No transcription received');
     }
 
-    const transcribedText = data.text || data.transcription;
+    const transcribedText = data.text;
     console.log('✅ Transcription successful');
     console.log('Transcribed text:', transcribedText);
+    console.log('Detected language:', data.language);
     
     return {
       success: true,
