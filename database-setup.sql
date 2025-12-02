@@ -10,25 +10,33 @@
 CREATE TABLE IF NOT EXISTS cbse_grades (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   grade_number INT NOT NULL UNIQUE,
+  grade_name TEXT NOT NULL,
   display_name TEXT NOT NULL,
-  description TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  description TEXT
 );
 
--- Add description column if it doesn't exist (for existing tables)
+-- Add missing columns if they don't exist (for existing tables)
+ALTER TABLE cbse_grades ADD COLUMN IF NOT EXISTS grade_name TEXT;
+ALTER TABLE cbse_grades ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE cbse_grades ADD COLUMN IF NOT EXISTS description TEXT;
 
 -- Insert default grades
-INSERT INTO cbse_grades (grade_number, display_name, description) VALUES
-  (6, 'Class 6', 'Grade 6 - Middle School'),
-  (7, 'Class 7', 'Grade 7 - Middle School'),
-  (8, 'Class 8', 'Grade 8 - Middle School'),
-  (9, 'Class 9', 'Grade 9 - Secondary School'),
-  (10, 'Class 10', 'Grade 10 - Secondary School'),
-  (11, 'Class 11', 'Grade 11 - Senior Secondary School'),
-  (12, 'Class 12', 'Grade 12 - Senior Secondary School')
-ON CONFLICT (grade_number) DO NOTHING;
+INSERT INTO cbse_grades (grade_number, grade_name, display_name, is_active, description) VALUES
+  (6, 'grade_6', 'Class 6', TRUE, 'Grade 6 - Middle School'),
+  (7, 'grade_7', 'Class 7', TRUE, 'Grade 7 - Middle School'),
+  (8, 'grade_8', 'Class 8', TRUE, 'Grade 8 - Middle School'),
+  (9, 'grade_9', 'Class 9', TRUE, 'Grade 9 - Secondary School'),
+  (10, 'grade_10', 'Class 10', TRUE, 'Grade 10 - Secondary School'),
+  (11, 'grade_11', 'Class 11', TRUE, 'Grade 11 - Senior Secondary School'),
+  (12, 'grade_12', 'Class 12', TRUE, 'Grade 12 - Senior Secondary School')
+ON CONFLICT (grade_number) DO UPDATE SET 
+  grade_name = EXCLUDED.grade_name,
+  display_name = EXCLUDED.display_name,
+  is_active = EXCLUDED.is_active,
+  description = EXCLUDED.description;
 
 -- ============================================
 -- 2. CBSE SUBJECTS TABLE
