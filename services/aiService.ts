@@ -191,6 +191,7 @@ export interface SendAIMessageOptions {
   agentType?: 'learning_coach' | 'doubt_solver' | 'practice_generator' | 'progress_analyst';
   conversationHistory?: { role: string; content: string }[];
   subjectName?: string;
+  imageUri?: string;
 }
 
 export const sendAIMessage = async (
@@ -214,6 +215,7 @@ export const sendAIMessage = async (
       sessionId = generateSessionId(),
       agentType = 'learning_coach',
       subjectName = undefined,
+      imageUri = undefined,
     } = options;
 
     const contextResult = await getAILearningContext(userId, topicId, chapterId, subjectName);
@@ -228,7 +230,10 @@ export const sendAIMessage = async (
     console.log('Recent mistakes:', context.recent_mistakes?.length || 0);
 
     console.log('=== CALLING RORK AI ===');
-    const rorkResult = await sendRorkAIMessage(userId, message, context, options);
+    if (imageUri) {
+      console.log('📷 Sending image with message:', imageUri);
+    }
+    const rorkResult = await sendRorkAIMessage(userId, message, context, { ...options, imageUri });
     
     if (!rorkResult.success || !rorkResult.response) {
       console.error('❌ Rork AI failed:', rorkResult.error);
@@ -252,6 +257,7 @@ export const sendAIMessage = async (
         was_helpful: null,
         user_feedback: null,
         ai_provider: 'rork',
+        has_image: imageUri ? true : false,
       });
     } catch (saveError) {
       console.warn('Failed to save conversation:', saveError);

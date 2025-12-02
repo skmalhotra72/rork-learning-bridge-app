@@ -1,11 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Send, ImagePlus } from "lucide-react-native";
+import { ArrowLeft, Send, ImagePlus, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -305,6 +306,7 @@ export default function AITutorScreen() {
             role: msg.role === "user" ? "user" : "assistant",
             content: msg.content,
           })),
+        imageUri: imageCopy || undefined,
       });
 
       if (result.success && result.response) {
@@ -601,6 +603,13 @@ export default function AITutorScreen() {
                       : styles.aiMessageContent,
                   ]}
                 >
+                  {message.imageUri && (
+                    <Image 
+                      source={{ uri: message.imageUri }} 
+                      style={styles.messageImage}
+                      resizeMode="cover"
+                    />
+                  )}
                   <Text
                     style={[
                       styles.messageText,
@@ -657,6 +666,25 @@ export default function AITutorScreen() {
             </Pressable>
           </View>
 
+          {selectedImage && (
+            <View style={styles.imagePreviewContainer}>
+              <View style={styles.imagePreview}>
+                <Image 
+                  source={{ uri: selectedImage }} 
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
+                <Pressable 
+                  style={styles.removeImageButton}
+                  onPress={() => setSelectedImage(null)}
+                >
+                  <X size={16} color="#FFFFFF" />
+                </Pressable>
+              </View>
+              <Text style={styles.imagePreviewText}>Image attached 📷</Text>
+            </View>
+          )}
+
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -670,11 +698,11 @@ export default function AITutorScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.sendButton,
-                !inputText.trim() && styles.sendButtonDisabled,
-                pressed && inputText.trim() && styles.sendButtonPressed,
+                (!inputText.trim() && !selectedImage) && styles.sendButtonDisabled,
+                pressed && (inputText.trim() || selectedImage) && styles.sendButtonPressed,
               ]}
               onPress={handleSend}
-              disabled={!inputText.trim() || isLoading}
+              disabled={(!inputText.trim() && !selectedImage) || isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -893,5 +921,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600" as const,
     textAlign: "center",
+  },
+  imagePreviewContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: Colors.cardBackground,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  imagePreview: {
+    position: "relative" as const,
+    alignSelf: "flex-start",
+  },
+  previewImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  removeImageButton: {
+    position: "absolute" as const,
+    top: -8,
+    right: -8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  imagePreviewText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 8,
   },
 });

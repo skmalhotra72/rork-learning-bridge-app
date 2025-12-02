@@ -14,6 +14,7 @@ export interface RorkAIOptions {
   agentType?: 'learning_coach' | 'doubt_solver' | 'practice_generator' | 'progress_analyst';
   conversationHistory?: { role: string; content: string }[];
   subjectName?: string;
+  imageUri?: string;
 }
 
 const buildSystemPrompt = (templateType: string, context: AILearningContext, subjectName?: string): string => {
@@ -53,6 +54,11 @@ YOUR TEACHING APPROACH:
 8. **Be Patient**: If they're confused, simplify further and use more examples
 9. **Real World**: Connect concepts to daily life and practical applications
 10. **Celebrate Wins**: Acknowledge their questions and curiosity positively
+11. **Image Analysis**: When an image is provided, carefully analyze it and help with:
+    - Explaining concepts shown in textbook pages
+    - Solving math/science problems shown in the image
+    - Checking student's written work and providing constructive feedback
+    - Reading and explaining diagrams, charts, or formulas
 
 LANGUAGE PREFERENCE: Respond in ${context.student?.preferred_language || 'English'}${context.student?.code_mixing_enabled ? ' (you can naturally mix Hindi words for technical terms - Hinglish is welcome!)' : ''}.
 
@@ -163,6 +169,7 @@ export const sendRorkAIMessage = async (
       agentType = 'learning_coach',
       conversationHistory = [],
       subjectName = undefined,
+      imageUri = undefined,
     } = options;
 
     console.log('✅ Context loaded for:', context.student?.name, '(Class', context.student?.grade, ')');
@@ -180,9 +187,12 @@ export const sendRorkAIMessage = async (
 
     console.log('System prompt prepared, length:', systemPrompt.length);
     console.log('Conversation history:', conversationHistory.length, 'messages');
+    if (imageUri) {
+      console.log('📷 Image attached:', imageUri);
+    }
     console.log('Calling Rork AI API...');
 
-    const aiResponse = await callRorkAI(message, systemPrompt, conversationHistory);
+    const aiResponse = await callRorkAI(message, systemPrompt, conversationHistory, imageUri);
 
     const responseTime = Date.now() - startTime;
 
@@ -225,7 +235,8 @@ export const sendRorkAIMessage = async (
 const callRorkAI = async (
   userMessage: string,
   systemPrompt: string,
-  conversationHistory: { role: string; content: string }[]
+  conversationHistory: { role: string; content: string }[],
+  imageUri?: string
 ): Promise<string> => {
   console.log('=== CALLING RORK AI SDK ===');
   
@@ -235,7 +246,15 @@ const callRorkAI = async (
       role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
       content: msg.content
     })),
-    { role: 'user' as const, content: userMessage },
+    imageUri 
+      ? { 
+          role: 'user' as const, 
+          content: [
+            { type: 'text' as const, text: userMessage },
+            { type: 'image' as const, image: imageUri }
+          ]
+        }
+      : { role: 'user' as const, content: userMessage },
   ];
 
   try {
