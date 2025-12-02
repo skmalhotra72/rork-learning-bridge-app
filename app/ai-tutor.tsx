@@ -346,14 +346,14 @@ export default function AITutorScreen() {
       const errorMsg: Message = {
         id: Date.now().toString() + '_error',
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again. 😔\n\nIf this keeps happening, please check your OpenAI API key in the env file.",
+        content: "Sorry, I encountered an error while trying to help you. Please try again. 😔\n\nI'm using Rork AI to assist you with your learning.",
         timestamp: new Date(),
       };
       setChatMessages((prev) => [...prev, errorMsg]);
 
       Alert.alert(
         'Error',
-        'Failed to send message. Please check your OpenAI API key configuration.',
+        'Failed to get AI response. Please check your internet connection and try again.',
         [{ text: 'OK' }]
       );
     } finally {

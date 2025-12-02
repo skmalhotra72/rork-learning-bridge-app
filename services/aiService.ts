@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { getTutorInfo } from '@/constants/tutorNames';
 import { Config, isOpenAIConfigured } from '@/constants/config';
+import { sendRorkAIMessage } from './rorkAIService';
 
 const generateSessionId = () => {
   return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -361,7 +362,31 @@ export const sendAIMessage = async (
       subjectName
     );
 
-    const aiResponse = await callAIAPI(message, systemPrompt, conversationHistory, context);
+    console.log('=== ATTEMPTING RORK AI FIRST ===');
+    let aiResponse: string;
+    let usedRorkAI = false;
+    
+    try {
+      const rorkResult = await sendRorkAIMessage(userId, message, context, options);
+      if (rorkResult.success && rorkResult.response) {
+        aiResponse = rorkResult.response;
+        usedRorkAI = true;
+        console.log('✅ Used Rork AI successfully');
+      } else {
+        throw new Error('Rork AI returned no response');
+      }
+    } catch (rorkError) {
+      console.warn('⚠️ Rork AI failed, falling back to OpenAI:', rorkError);
+      
+      if (isOpenAIConfigured()) {
+        console.log('Falling back to OpenAI...');
+        aiResponse = await callAIAPI(message, systemPrompt, conversationHistory, context);
+        console.log('✅ Used OpenAI as fallback');
+      } else {
+        console.error('❌ Both Rork AI and OpenAI unavailable');
+        throw new Error('AI services unavailable. Please check your configuration.');
+      }
+    }
 
     const responseTime = Date.now() - startTime;
 
@@ -376,6 +401,7 @@ export const sendAIMessage = async (
         response_time_ms: responseTime,
         was_helpful: null,
         user_feedback: null,
+        ai_provider: usedRorkAI ? 'rork' : 'openai',
       });
     } catch (saveError) {
       console.warn('Failed to save conversation:', saveError);
@@ -457,18 +483,13 @@ const callAIAPI = async (
   conversationHistory: { role: string; content: string }[],
   context: AILearningContext
 ): Promise<string> => {
-  console.log('=== CHECKING API KEY ===');
+  console.log('=== CHECKING OPENAI API KEY (FALLBACK) ===');
   const configured = isOpenAIConfigured();
   console.log('API Key configured:', configured);
-  console.log('Config.OPENAI_API_KEY exists:', !!Config.OPENAI_API_KEY);
-  console.log('Config.OPENAI_API_KEY length:', Config.OPENAI_API_KEY?.length || 0);
-  console.log('Config.OPENAI_API_KEY starts with sk-:', Config.OPENAI_API_KEY?.startsWith('sk-'));
   
   if (!configured) {
-    console.error('⚠️⚠️⚠️ OpenAI API key not configured!');
-    console.error('CRITICAL: Please add your OpenAI API key to the env file');
-    console.error('The AI Tutor will NOT work without a valid API key!');
-    throw new Error('OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
+    console.warn('⚠️ OpenAI API key not configured (using as fallback only)');
+    throw new Error('OpenAI API not available');
   }
 
   const apiKey = Config.OPENAI_API_KEY!;
