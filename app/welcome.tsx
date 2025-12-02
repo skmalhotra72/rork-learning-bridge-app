@@ -135,6 +135,13 @@ export default function WelcomeScreen() {
             </Pressable>
           </Animated.View>
 
+          <Pressable
+            style={styles.testButton}
+            onPress={() => router.push('/test-api-key' as any)}
+          >
+            <Text style={styles.testButtonText}>🧪 Test OpenAI API</Text>
+          </Pressable>
+
           <Text style={styles.footerText}>
             Join thousands of students mastering CBSE curriculum
           </Text>
@@ -275,5 +282,19 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 24,
     textAlign: "center",
+  },
+  testButton: {
+    backgroundColor: Colors.cardBackground,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  testButtonText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '600' as const,
   },
 });
