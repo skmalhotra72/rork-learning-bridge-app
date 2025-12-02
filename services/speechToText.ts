@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
 
 export interface SpeechToTextOptions {
   audioUri: string;
@@ -44,12 +43,6 @@ export const transcribeAudio = async (
         text: data.text || data.transcription,
       };
     } else {
-      const fileInfo = await FileSystem.getInfoAsync(options.audioUri);
-      
-      if (!fileInfo.exists) {
-        throw new Error('Audio file does not exist');
-      }
-
       const formData = new FormData();
       formData.append('file', {
         uri: options.audioUri,
