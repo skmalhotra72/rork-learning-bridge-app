@@ -17,13 +17,7 @@ CREATE TABLE IF NOT EXISTS cbse_grades (
 );
 
 -- Add description column if it doesn't exist (for existing tables)
-DO $$ 
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                 WHERE table_name = 'cbse_grades' AND column_name = 'description') THEN
-    ALTER TABLE cbse_grades ADD COLUMN description TEXT;
-  END IF;
-END $$;
+ALTER TABLE cbse_grades ADD COLUMN IF NOT EXISTS description TEXT;
 
 -- Insert default grades
 INSERT INTO cbse_grades (grade_number, display_name, description) VALUES
@@ -73,18 +67,9 @@ CREATE TABLE IF NOT EXISTS cbse_books (
   UNIQUE(grade_id, subject_id)
 );
 
--- Add missing columns if they don't exist
-DO $$ 
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                 WHERE table_name = 'cbse_books' AND column_name = 'book_code') THEN
-    ALTER TABLE cbse_books ADD COLUMN book_code TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                 WHERE table_name = 'cbse_books' AND column_name = 'publication_year') THEN
-    ALTER TABLE cbse_books ADD COLUMN publication_year INT;
-  END IF;
-END $$;
+-- Add missing columns if they don't exist (safe for re-runs)
+ALTER TABLE cbse_books ADD COLUMN IF NOT EXISTS book_code TEXT;
+ALTER TABLE cbse_books ADD COLUMN IF NOT EXISTS publication_year INT;
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_cbse_books_grade ON cbse_books(grade_id);
