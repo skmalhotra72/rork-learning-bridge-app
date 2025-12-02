@@ -42,14 +42,15 @@ export interface AILearningContext {
 export const getAILearningContext = async (
   userId: string,
   topicId: string | null = null,
-  chapterId: string | null = null
+  chapterId: string | null = null,
+  subjectName?: string
 ): Promise<{
   success: boolean;
   context: AILearningContext | null;
   error?: any;
 }> => {
   try {
-    console.log('=== FETCHING AI CONTEXT ===', { userId, topicId, chapterId });
+    console.log('=== FETCHING AI CONTEXT ===', { userId, topicId, chapterId, subjectName });
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -59,6 +60,8 @@ export const getAILearningContext = async (
 
     if (profileError) throw profileError;
 
+    console.log('✅ Profile loaded:', profile?.full_name);
+
     const { data: userStats, error: statsError } = await supabase
       .from('user_stats')
       .select('*')
@@ -67,7 +70,17 @@ export const getAILearningContext = async (
 
     if (statsError) {
       console.warn('User stats error:', statsError);
+    } else {
+      console.log('✅ Stats loaded: Level', userStats?.current_level, 'XP', userStats?.total_xp);
     }
+
+    const { data: languageSettings } = await supabase
+      .from('user_language_settings')
+      .select('preferred_tutoring_language, allow_code_mixing')
+      .eq('user_id', userId)
+      .single();
+
+    console.log('✅ Language settings:', languageSettings?.preferred_tutoring_language || 'English');
 
     let topicData = null;
     if (topicId) {
@@ -79,31 +92,82 @@ export const getAILearningContext = async (
 
       if (!error && data) {
         topicData = data;
+        console.log('✅ Topic loaded:', data.topic_title);
       }
+    }
+
+    const { data: weakConcepts } = await supabase
+      .from('concept_mastery')
+      .select('concept_name, mastery_level')
+      .eq('user_id', userId)
+      .lt('mastery_level', 70)
+      .order('mastery_level', { ascending: true })
+      .limit(5);
+
+    if (weakConcepts && weakConcepts.length > 0) {
+      console.log('✅ Weak concepts found:', weakConcepts.length);
+    }
+
+    const { data: recentMistakes } = await supabase
+      .from('practice_attempts')
+      .select('question_text, student_answer, correct_answer')
+      .eq('user_id', userId)
+      .eq('is_correct', false)
+      .order('attempted_at', { ascending: false })
+      .limit(5);
+
+    if (recentMistakes && recentMistakes.length > 0) {
+      console.log('✅ Recent mistakes found:', recentMistakes.length);
+    }
+
+    const { data: subjectProgress } = await supabase
+      .from('subject_progress')
+      .select('success_rate, understanding_score')
+      .eq('user_id', userId)
+      .eq('subject', subjectName || '')
+      .maybeSingle();
+
+    if (subjectProgress) {
+      console.log('✅ Subject progress loaded');
     }
 
     const context: AILearningContext = {
       student: {
         name: profile?.full_name,
         grade: profile?.grade,
-        preferred_language: 'English',
-        code_mixing_enabled: true,
+        preferred_language: languageSettings?.preferred_tutoring_language || 'English',
+        code_mixing_enabled: languageSettings?.allow_code_mixing ?? true,
       },
       current_topic: topicData ? {
         topic_title: topicData.topic_title,
         topic_description: topicData.topic_description,
+      } : (subjectName ? {
+        topic_title: subjectName,
+        topic_description: `${subjectName} - Class ${profile?.grade}`,
+      } : undefined),
+      topic_progress: subjectProgress ? {
+        understanding_score: subjectProgress.understanding_score,
+        success_rate: subjectProgress.success_rate,
+        status: subjectProgress.success_rate >= 70 ? 'good' : 'needs_work',
       } : undefined,
       overall_stats: {
         current_level: userStats?.current_level || 1,
         total_xp: userStats?.total_xp || 0,
         current_streak: userStats?.streak_count || 0,
-        total_study_hours: 0,
+        total_study_hours: Math.floor((userStats?.total_xp || 0) / 100),
       },
-      weak_concepts: [],
-      recent_mistakes: [],
+      weak_concepts: (weakConcepts || []).map(wc => ({
+        concept_name: wc.concept_name,
+        mastery_level: wc.mastery_level,
+      })),
+      recent_mistakes: (recentMistakes || []).map(rm => ({
+        question: rm.question_text || '',
+        student_answer: rm.student_answer || '',
+        correct_answer: rm.correct_answer || '',
+      })),
     };
 
-    console.log('✅ Context loaded');
+    console.log('✅ Full context loaded for', context.student?.name);
     return {
       success: true,
       context,
@@ -124,93 +188,122 @@ const buildSystemPrompt = (templateType: string, context: AILearningContext, sub
   const tutorInfo = subjectName ? getTutorInfo(subjectName) : { name: 'Your Tutor', emoji: '👨‍🏫' };
   
   const templates: Record<string, string> = {
-    explain: `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly and encouraging tutor helping ${firstName}, a Class ${context.student?.grade || '10'} student.
+    explain: `You are ${tutorInfo.name} ${tutorInfo.emoji}, a friendly and encouraging CBSE tutor helping ${firstName}, a Class ${context.student?.grade || '10'} student.
+
+STUDENT PROFILE:
+- Name: ${firstName}
+- Class: ${context.student?.grade || '10'}
+- Current Level: ${context.overall_stats?.current_level || 1}
+- Total XP: ${context.overall_stats?.total_xp || 0}
+- Current Streak: ${context.overall_stats?.current_streak || 0} days
+- Preferred Language: ${context.student?.preferred_language || 'English'}
 
 ${context.current_topic ? `CURRENT TOPIC: ${context.current_topic.topic_title}
 ${context.current_topic.topic_description ? `Description: ${context.current_topic.topic_description}` : ''}` : ''}
 
-STUDENT'S LEVEL: Class ${context.student?.grade || '10'}
-
-${context.weak_concepts && context.weak_concepts.length > 0 ? `
-AREAS WHERE STUDENT STRUGGLES:
+${context.weak_concepts && context.weak_concepts.length > 0 ? `AREAS WHERE STUDENT STRUGGLES:
 ${context.weak_concepts.map(c => `- ${c.concept_name} (${c.mastery_level}% mastery)`).join('\n')}
 ` : ''}
 
-LANGUAGE: Use ${context.student?.preferred_language || 'English'}${context.student?.code_mixing_enabled ? ' with natural Hinglish code-mixing for technical terms' : ''}.
+${context.recent_mistakes && context.recent_mistakes.length > 0 ? `RECENT MISTAKES:
+${context.recent_mistakes.slice(0, 3).map(m => `- Question: ${m.question}\n  Student's answer: ${m.student_answer}\n  Correct answer: ${m.correct_answer}`).join('\n')}
+` : ''}
 
-YOUR APPROACH:
-1. Be friendly, patient, and encouraging
-2. Start with what they know
-3. Use simple language for Class ${context.student?.grade || '10'}
-4. Give real-world examples (Indian context - rupees, cricket, festivals)
-5. Break complex ideas into steps
-6. Check understanding frequently
-7. Celebrate progress and build confidence
-8. If confused, simplify further
+YOUR TEACHING APPROACH:
+1. **Address by Name**: Call ${firstName} by their first name to make it personal
+2. **Age-Appropriate**: Use language suitable for Class ${context.student?.grade || '10'} CBSE students
+3. **Indian Context**: Use Indian examples (₹ rupees, cricket, Bollywood, festivals, Indian names like Raj, Priya, Amit)
+4. **Build on Knowledge**: Reference their progress (Level ${context.overall_stats?.current_level || 1}, ${context.overall_stats?.total_xp || 0} XP)
+5. **Step-by-Step**: Break complex concepts into digestible steps
+6. **Encourage**: Celebrate their ${context.overall_stats?.current_streak || 0}-day streak and progress
+7. **Check Understanding**: Ask follow-up questions to verify comprehension
+8. **Be Patient**: If they're confused, simplify further and use more examples
+9. **Real World**: Connect concepts to daily life and practical applications
+10. **Celebrate Wins**: Acknowledge their questions and curiosity positively
 
-Respond to the student's question in a helpful, encouraging way.`,
+LANGUAGE PREFERENCE: Respond in ${context.student?.preferred_language || 'English'}${context.student?.code_mixing_enabled ? ' (you can naturally mix Hindi words for technical terms - Hinglish is welcome!)' : ''}.
 
-    doubt: `You are ${tutorInfo.name} ${tutorInfo.emoji}, solving a specific doubt for ${firstName}.
+REMEMBER:
+- Always use ${firstName}'s name in your responses
+- Be warm, friendly, and encouraging like a supportive tutor
+- Make learning fun and relatable
+- Connect to their syllabus and exam preparation
+- Build confidence through positive reinforcement
 
+Now respond to ${firstName}'s question with personalized, contextual help!`,
+
+    doubt: `You are ${tutorInfo.name} ${tutorInfo.emoji}, solving a specific doubt for ${firstName}, a Class ${context.student?.grade || '10'} student.
+
+STUDENT: ${firstName}
+CLASS: ${context.student?.grade || '10'}
 TOPIC: ${context.current_topic?.topic_title || 'General'}
-STUDENT'S LEVEL: Class ${context.student?.grade || '10'}
+CURRENT LEVEL: ${context.overall_stats?.current_level || 1}
 
-${context.recent_mistakes && context.recent_mistakes.length > 0 ? `
-They recently struggled with:
-${context.recent_mistakes.map(m => `- ${m.question}`).join('\n')}
+${context.recent_mistakes && context.recent_mistakes.length > 0 ? `RECENT STRUGGLES:
+${context.recent_mistakes.slice(0, 2).map(m => `- ${m.question}`).join('\n')}
 ` : ''}
 
 TASK:
-1. Understand their confusion
-2. Provide clear step-by-step explanation
-3. Use examples if helpful
-4. Use ${context.student?.preferred_language || 'English'}
+1. Address ${firstName} by name
+2. Understand their specific confusion
+3. Provide clear, step-by-step explanation
+4. Use examples from Indian context
+5. Check if they understood
+6. Use ${context.student?.preferred_language || 'English'}
 
-Be concise but thorough.`,
+Be patient, encouraging, and thorough.`,
 
-    practice: `You are ${tutorInfo.name} ${tutorInfo.emoji}, generating practice problems.
+    practice: `You are ${tutorInfo.name} ${tutorInfo.emoji}, creating practice problems for ${firstName}, a Class ${context.student?.grade || '10'} student.
 
+STUDENT: ${firstName}
+CLASS: ${context.student?.grade || '10'}
 TOPIC: ${context.current_topic?.topic_title || 'General'}
-LEVEL: Class ${context.student?.grade || '10'}
+CURRENT LEVEL: ${context.overall_stats?.current_level || 1}
 
-${context.weak_concepts && context.weak_concepts.length > 0 ? `
-FOCUS ON:
+${context.weak_concepts && context.weak_concepts.length > 0 ? `FOCUS AREAS:
 ${context.weak_concepts.map(c => `- ${c.concept_name}`).join('\n')}
 ` : ''}
 
-GENERATE:
-- 3 practice problems for CBSE Class ${context.student?.grade || '10'}
-- Mix of difficulty
-- Include complete solutions
-- Use Indian context
+CREATE:
+- 3 CBSE-style practice problems for Class ${context.student?.grade || '10'}
+- Appropriate difficulty for their level
+- Include complete step-by-step solutions
+- Use Indian context (names, rupees, scenarios)
+- Align with CBSE curriculum
 
-Format:
-Problem 1: [statement]
-Solution: [steps]
-Answer: [final answer]`,
+Format each problem clearly with:
+**Problem:** [Clear statement]
+**Solution:** [Step-by-step solution]
+**Answer:** [Final answer]
 
-    progress: `You are ${tutorInfo.name} ${tutorInfo.emoji}, analyzing progress for ${firstName}.
+Address ${firstName} by name and encourage them!`,
 
-OVERALL:
-- Level ${context.overall_stats?.current_level || 1}
-- ${context.overall_stats?.total_xp || 0} XP
-- ${context.overall_stats?.current_streak || 0} day streak
+    progress: `You are ${tutorInfo.name} ${tutorInfo.emoji}, analyzing progress for ${firstName}, a Class ${context.student?.grade || '10'} student.
 
-${context.current_topic ? `CURRENT TOPIC: ${context.current_topic.topic_title}` : ''}
+STUDENT PROGRESS:
+- Name: ${firstName}
+- Class: ${context.student?.grade || '10'}
+- Current Level: ${context.overall_stats?.current_level || 1}
+- Total XP: ${context.overall_stats?.total_xp || 0}
+- Current Streak: ${context.overall_stats?.current_streak || 0} days
+- Study Hours: ${context.overall_stats?.total_study_hours || 0}
 
-${context.weak_concepts && context.weak_concepts.length > 0 ? `
-NEEDS WORK:
-${context.weak_concepts.map(c => `- ${c.concept_name}: ${c.mastery_level}%`).join('\n')}
+${context.current_topic ? `CURRENT FOCUS: ${context.current_topic.topic_title}` : ''}
+
+${context.weak_concepts && context.weak_concepts.length > 0 ? `AREAS TO IMPROVE:
+${context.weak_concepts.map(c => `- ${c.concept_name}: ${c.mastery_level}% mastery`).join('\n')}
 ` : ''}
 
 PROVIDE:
-1. Progress summary (be positive!)
-2. Strengths
-3. Areas to improve (constructive)
-4. Specific recommendations
-5. Encouragement
+1. Personal greeting using ${firstName}'s name
+2. Celebrate their achievements (level, XP, streak)
+3. Highlight their strengths
+4. Identify 2-3 specific areas to work on (constructive, encouraging)
+5. Give actionable recommendations
+6. Motivate them for continued learning
+7. Reference their progress and celebrate milestones
 
-Focus on growth mindset.`,
+Tone: Encouraging, positive, growth-minded. Make ${firstName} feel proud of their progress!`,
   };
 
   return templates[templateType] || templates.explain;
@@ -249,12 +342,16 @@ export const sendAIMessage = async (
       subjectName = undefined,
     } = options;
 
-    const contextResult = await getAILearningContext(userId, topicId, chapterId);
+    const contextResult = await getAILearningContext(userId, topicId, chapterId, subjectName);
     if (!contextResult.success || !contextResult.context) {
       throw new Error('Failed to load context');
     }
 
     const context = contextResult.context;
+    console.log('✅ Context loaded for:', context.student?.name, '(Class', context.student?.grade, ')');
+    console.log('Student stats:', context.overall_stats);
+    console.log('Weak concepts:', context.weak_concepts?.length || 0);
+    console.log('Recent mistakes:', context.recent_mistakes?.length || 0);
 
     const systemPrompt = buildSystemPrompt(
       agentType === 'doubt_solver' ? 'doubt' :
@@ -368,16 +465,19 @@ const callAIAPI = async (
   console.log('Config.OPENAI_API_KEY starts with sk-:', Config.OPENAI_API_KEY?.startsWith('sk-'));
   
   if (!configured) {
-    console.log('⚠️ OpenAI API key not configured - using simulated responses');
-    console.log('PLEASE ADD YOUR OPENAI API KEY TO THE env FILE');
-    return simulateAIResponse(userMessage, systemPrompt, context);
+    console.error('⚠️⚠️⚠️ OpenAI API key not configured!');
+    console.error('CRITICAL: Please add your OpenAI API key to the env file');
+    console.error('The AI Tutor will NOT work without a valid API key!');
+    throw new Error('OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your env file.');
   }
 
   const apiKey = Config.OPENAI_API_KEY!;
   console.log('=== CALLING OPENAI API ===');
+  console.log('Student:', context.student?.name, '(Class', context.student?.grade, ')');
   console.log('System prompt length:', systemPrompt.length);
   console.log('Conversation history length:', conversationHistory.length);
   console.log('User message:', userMessage.substring(0, 100));
+  console.log('Using model: gpt-4o-mini');
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -386,6 +486,7 @@ const callAIAPI = async (
   ];
 
   try {
+    console.log('Making API request to OpenAI...');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -396,32 +497,50 @@ const callAIAPI = async (
         model: 'gpt-4o-mini',
         messages: messages,
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 1500,
+        presence_penalty: 0.6,
+        frequency_penalty: 0.3,
       }),
     });
 
+    console.log('OpenAI API response status:', response.status);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      console.error('❌ OpenAI API error:', response.status, errorData);
-      console.log('⚠️ Falling back to simulated response');
-      return simulateAIResponse(userMessage, systemPrompt, context);
+      console.error('❌ OpenAI API error:', response.status, JSON.stringify(errorData));
+      
+      if (response.status === 401) {
+        throw new Error('Invalid OpenAI API key. Please check your EXPO_PUBLIC_OPENAI_API_KEY in the env file.');
+      } else if (response.status === 429) {
+        throw new Error('OpenAI rate limit exceeded. Please wait a moment and try again.');
+      } else if (response.status === 500 || response.status === 503) {
+        throw new Error('OpenAI service is temporarily unavailable. Please try again.');
+      } else {
+        throw new Error(`OpenAI API error: ${response.status} - ${errorData?.error?.message || 'Unknown error'}`);
+      }
     }
 
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content;
 
     if (!aiResponse) {
-      console.log('⚠️ No response from OpenAI - using simulated response');
-      return simulateAIResponse(userMessage, systemPrompt, context);
+      console.error('❌ No response content from OpenAI');
+      console.error('Response data:', JSON.stringify(data));
+      throw new Error('No response from OpenAI. Please try again.');
     }
 
-    console.log('✅ OpenAI response received:', aiResponse.substring(0, 100));
+    console.log('✅✅✅ OpenAI response received successfully!');
+    console.log('Response preview:', aiResponse.substring(0, 150) + '...');
+    console.log('Response length:', aiResponse.length, 'characters');
+    console.log('Tokens used:', data.usage?.total_tokens || 'unknown');
+    
     return aiResponse;
 
   } catch (error) {
     console.error('❌ OpenAI API call failed:', error);
-    console.log('⚠️ Falling back to simulated response');
-    return simulateAIResponse(userMessage, systemPrompt, context);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Error details:', errorMessage);
+    throw error;
   }
 };
 

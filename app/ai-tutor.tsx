@@ -23,7 +23,7 @@ import { useUser } from "@/contexts/UserContext";
 import { getTutorInfo, getTutorGreeting } from "@/constants/tutorNames";
 
 import { saveLearningSession, updateConceptMastery } from "@/services/learningHistory";
-import { getLanguageSettings, LanguageSettings, buildMultilingualSystemPrompt, buildMultilingualPracticeProblemPrompt } from "@/services/multilingualPrompts";
+import { getLanguageSettings, LanguageSettings, buildMultilingualPracticeProblemPrompt } from "@/services/multilingualPrompts";
 import { addXP, updateStreak, checkBadgeEligibility } from "@/services/gamification";
 import { aiChatRateLimiter } from "@/utils/rateLimiter";
 
@@ -54,7 +54,6 @@ export default function AITutorScreen() {
       timestamp: new Date(),
     },
   ]);
-  const MAX_MESSAGES = 50;
   const [sessionData, setSessionData] = useState({
     conceptsExplained: [] as string[],
     keyPoints: [] as string[],
@@ -70,7 +69,6 @@ export default function AITutorScreen() {
   });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [languageSettings, setLanguageSettings] = useState<LanguageSettings | null>(null);
-  const [systemPrompt, setSystemPrompt] = useState<string>('');
 
   const [isAIResponding, setIsAIResponding] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -105,10 +103,7 @@ export default function AITutorScreen() {
       console.log('✅ Language settings loaded');
       console.log('Preferred language:', settings.preferred_tutoring_language);
       console.log('Code mixing:', settings.allow_code_mixing);
-
-      await buildAndSetSystemPrompt(settings);
       
-      // Update the initial greeting based on language
       const greeting = getLocalizedGreeting(settings.preferred_tutoring_language);
       setChatMessages([{
         id: "1",
@@ -123,33 +118,6 @@ export default function AITutorScreen() {
 
   const getLocalizedGreeting = (language: string): string => {
     return getTutorGreeting(subjectName, user?.name || 'Student', language);
-  };
-
-  const buildAndSetSystemPrompt = async (settings?: LanguageSettings) => {
-    if (!authUser?.id) return;
-
-    const lang = settings || languageSettings;
-    if (!lang) {
-      console.log('No language settings, using default');
-      return;
-    }
-
-    try {
-      console.log('=== BUILDING MULTILINGUAL SYSTEM PROMPT ===');
-      const prompt = await buildMultilingualSystemPrompt(
-        authUser.id,
-        subjectName,
-        'Interactive Learning',
-        undefined
-      );
-      
-      setSystemPrompt(prompt);
-      console.log('✅ System prompt built');
-      console.log('Language:', lang.preferred_tutoring_language);
-      console.log('Prompt length:', prompt.length, 'characters');
-    } catch (error) {
-      console.error('❌ Build system prompt error:', error);
-    }
   };
 
   const isSavingRef = useRef(false);
