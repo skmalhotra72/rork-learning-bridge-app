@@ -94,7 +94,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
         .single();
 
       if (profileError) {
-        console.error("Error loading profile:", profileError);
+        console.error("Error loading profile:", profileError.message || profileError);
         setIsLoading(false);
         return;
       }
@@ -110,7 +110,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
         .eq("user_id", userId);
 
       if (subjectsError) {
-        console.error("Error loading subjects:", subjectsError);
+        console.error("Error loading subjects:", subjectsError.message || subjectsError);
       }
 
       const { data: userStats, error: statsError } = await supabase
@@ -120,7 +120,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
         .single();
 
       if (statsError) {
-        console.error("Error loading stats:", statsError);
+        console.error("Error loading stats:", statsError.message || statsError);
       } else {
         setStats(userStats);
       }
